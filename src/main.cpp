@@ -18,11 +18,10 @@ ros::Publisher motor_power_pub;
 float x_referens = 0;
 float z_referens = 0;
 
-bool stop_time = true;
-bool stop_button = true;
+bool stop_button = false;
 
-time_t s_interval;
-time_t joy_timer;
+double s_interval = clock();
+double joy_timer;
 
 void pubEnginePower();
 
@@ -33,20 +32,20 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
   x_referens = 100*(msg->axes[1]);
   z_referens = 100*(msg->axes[4]);
 
-  if (msg->buttons[0] == 1 && (difftime(s_interval, time(NULL)) > PUSH_SPEED))
+  if (msg->buttons[0] == 1 && ((s_interval - clock()) > PUSH_SPEED))
   {
 	  stop_button = !stop_button;
-	  time(&s_interval);
+	  s_interval = clock();
   }
 
-  time(&joy_timer);
+  joy_timer = clock();
   pubEnginePower();
 }
 
 // publiche when new stering diraktions is set
 void pubEnginePower()
 {
-	if ((difftime(joy_timer, time(NULL)) > TIME_OUT) && stop_button)
+	if (((joy_timer - clock()) < TIME_OUT) && !stop_button)
 	{
 		vel_msg.linear.x = x_referens;
 		vel_msg.linear.z = z_referens;
