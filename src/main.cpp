@@ -5,7 +5,7 @@
 
 
 //constant setup variabels change thise values here
-#define NODE_NAME "engien_mgmt"
+#define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
 #define ADVERTISE_POWER "motor_power"
 #define BUFER_SIZE 200
