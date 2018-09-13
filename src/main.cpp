@@ -20,7 +20,7 @@ float z_referens = 0;
 
 bool stop_button = false;
 
-double s_interval = clock();
+int s_singel_press = 0;
 double joy_timer;
 
 void pubEnginePower();
@@ -32,12 +32,12 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
   x_referens = 100*(msg->axes[1]);
   z_referens = 100*(msg->axes[4]);
 
-  if (msg->buttons[0] == 1 && ((s_interval - clock()) > PUSH_SPEED))
+  if (msg->buttons[0] == 1 && s_singel_press != msg->buttons[0])// && ((s_interval - clock()) > PUSH_SPEED))
   {
 	  stop_button = !stop_button;
-	  s_interval = clock();
   }
 
+	s_singel_press = msg->buttons[0];
   joy_timer = clock();
   pubEnginePower();
 }
