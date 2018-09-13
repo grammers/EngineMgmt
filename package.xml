@@ -1,5 +1,5 @@
 <package format="2">
-	<name>engien_mgmt</name>
+	<name>engine_mgmt</name>
 	<version>1.2.4</version>
 	<description>
 		Control unit for the motors.
