@@ -21,14 +21,14 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "EngineMgmt");
 
   ros::NodeHandle n;
-
+/*
 vel_msg.linear.x = 0;
 vel_msg.linear.y = 0;
 vel_msg.linear.z = 0;
 vel_msg.angular.x = 0;
 vel_msg.angular.y = 0;
 vel_msg.angular.z = 0;
-
+*/
   motor_power_pub = n.advertise<geometry_msgs::Twist>("motor_power", 200);
   ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>("joy", 200, joyCallback);
 
