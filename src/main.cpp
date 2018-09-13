@@ -15,13 +15,13 @@
 geometry_msgs::Twist vel_msg;
 ros::Publisher motor_power_pub;
 
-float x_ber = 0;
-float z_ber = 0;
+float x_referens = 0;
+float z_referens = 0;
 
 bool stop_time = true;
 bool stop_button = true;
 
-time_t s_interval = 0;
+time_t s_interval;
 time_t joy_timer;
 
 void pubEnginePower();
@@ -30,8 +30,8 @@ void pubEnginePower();
 // TODO stor data and macke calebrations for mor fansy controling befor publiching
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-  x_ber = 100*(msg->axes[1]);
-  z_ber = 100*(msg->axes[4]);
+  x_referens = 100*(msg->axes[1]);
+  z_referens = 100*(msg->axes[4]);
 
   if (msg->buttons[0] == 1 && (difftime(s_interval, time(NULL)) > PUSH_SPEED))
   {
@@ -40,7 +40,6 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
   }
 
   time(&joy_timer);
-  s_interval++;
   pubEnginePower();
 }
 
@@ -49,8 +48,8 @@ void pubEnginePower()
 {
 	if ((difftime(joy_timer, time(NULL)) > TIME_OUT) && stop_button)
 	{
-		vel_msg.linear.x = x_ber;
-		vel_msg.linear.z = z_ber;
+		vel_msg.linear.x = x_referens;
+		vel_msg.linear.z = z_referens;
 		motor_power_pub.publish(vel_msg);
 	}
 	else
