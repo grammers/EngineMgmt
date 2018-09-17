@@ -57,12 +57,12 @@ void pubEnginePower()
 	if (((joy_timer - clock()) < TIME_OUT) && !stop_button)
 	{
 		vel_msg.linear.x = x_referens;
-		vel_msg.linear.z = y_referens; //TODO change to y axes
+		vel_msg.linear.y = y_referens;
 	}
 	else
 	{
 		vel_msg.linear.x = 0;
-		vel_msg.linear.z = 0;
+		vel_msg.linear.y = 0;
 	}
 	motor_power_pub.publish(vel_msg);
 	return;
