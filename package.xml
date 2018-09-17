@@ -4,7 +4,7 @@
 	<description>
 		Control unit for the motors.
 	</description>
-	<maintainer email="samkar-4@student.ltu.se">PC-engien_mgmt</maintainer>
+	<maintainer email="samkar-4@student.ltu.se">PC-engine_mgmt</maintainer>
 	<license>BSD</license>
 
 	<buildtool_depend>catkin</buildtool_depend>

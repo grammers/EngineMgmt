@@ -9,14 +9,21 @@
 #define JOY_SUB_NODE "joy"
 #define ADVERTISE_POWER "motor_power"
 #define BUFER_SIZE 200
-#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
-#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop
+//#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
+#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
+// joy msg->axes array lay out; for a x-box 360 controller
+// [ , left stik upp/down, , , right stik upp/down , , ]
+// joy msg->button array lay out
+// [ A, 
+
+
+// message deglaraions
 geometry_msgs::Twist vel_msg;
 ros::Publisher motor_power_pub;
 
 float x_referens = 0;
-float z_referens = 0;
+float y_referens = 0;
 
 bool stop_button = false;
 
@@ -29,17 +36,19 @@ void pubEnginePower();
 // TODO stor data and macke calebrations for mor fansy controling befor publiching
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-  x_referens = 100*(msg->axes[1]);
-  z_referens = 100*(msg->axes[4]);
+  // read input form joj
+  	x_referens = 100*(msg->axes[1]);
+  	y_referens = 100*(msg->axes[4]);
 
-  if (msg->buttons[0] == 1 && s_singel_press != msg->buttons[0])// && ((s_interval - clock()) > PUSH_SPEED))
-  {
-	  stop_button = !stop_button;
-  }
+  //test if button hav ben presed
+	if (msg->buttons[0] == 1 && s_singel_press != msg->buttons[0])
+ 	{
+		stop_button = !stop_button;
+ 	}
 
 	s_singel_press = msg->buttons[0];
-  joy_timer = clock();
-  pubEnginePower();
+ 	joy_timer = clock();
+ 	pubEnginePower();	//TODO move to location  where control lodgik wont it to be called
 }
 
 // publiche when new stering diraktions is set
@@ -48,15 +57,14 @@ void pubEnginePower()
 	if (((joy_timer - clock()) < TIME_OUT) && !stop_button)
 	{
 		vel_msg.linear.x = x_referens;
-		vel_msg.linear.z = z_referens;
-		motor_power_pub.publish(vel_msg);
+		vel_msg.linear.z = y_referens; //TODO change to y axes
 	}
 	else
 	{
 		vel_msg.linear.x = 0;
-		vel_msg.linear.x = 0;
-		motor_power_pub.publish(vel_msg);
+		vel_msg.linear.z = 0;
 	}
+	motor_power_pub.publish(vel_msg);
 	return;
 }
 
