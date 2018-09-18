@@ -91,8 +91,11 @@ void setVelMsg(){
 	sterToSpeedBallanser();
 	if (((joy_timer - clock()) < TIME_OUT) && !stop_button)
 	{
+		// changes if in revers to not hav inverted stering in revers
+		if (speed_referens < 0) stering_referens = -stering_referens;
 		vel_msg.linear.x = speed_referens - stering_referens;
 		vel_msg.linear.y = speed_referens + stering_referens;
+
 	}
 	else
 	{
