@@ -5,11 +5,18 @@
 #include <time.h>
 #include <math.h>
 
+#include "std_msgs/Float32MultiArray.h"
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+
 //constant setup variabels change thise values here
 #define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
 #define ADVERTISE_POWER "motor_power" //publichng chanel
-#define BUFER_SIZE 200
+#define POWER_BUFFER_SIZE 200
+#define SUBSCRIBE_ENCODER "wheel_velocity"
+#define ENCODER_BUFFER_SIZE 5
+
 //#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
 #define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
@@ -23,9 +30,13 @@
 geometry_msgs::Twist vel_msg;
 ros::Publisher motor_power_pub;
 
+std_msgs::Float32MultiArray wheel_velocities;
+
 // TODO maybi change to a strukt. Global = bad!
 float speed_referens = 0;
 float stering_referens = 0;
+float current_L_vel = 0;
+float current_R_vel = 0;
 
 bool stop_button = false;
 
@@ -39,6 +50,7 @@ double joy_timer;
 void pubEnginePower();
 void sterToSpeedBallanser();
 void setVelMsg();
+void encoderCallback(const std_msgs::Int32MultiArray::ConstPtr& array);
 
 // reseves new data from joy
 // TODO stor data and macke calebrations for mor fansy controling befor publiching
@@ -72,7 +84,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 	s_singel_press = msg->buttons[0];
  	joy_timer = clock();
 	
- 	pubEnginePower();	//TODO move to location  where control lodgik wont it to be called
+ 	//pubEnginePower();	//TODO move to location  where control lodgik wont it to be called
 }
 
 // enshor that the speed dont exsit full power
@@ -84,6 +96,21 @@ void sterToSpeedBallanser(){
 		else stering_referens++;
 	}
 	return;
+}
+
+void encoderCallback(const std_msgs::Int32MultiArray::ConstPtr& array)
+{
+	/* idea: reference for both wheels come from joy, processed and globally declared variables
+	*			The encoders provide feedvack in this function, where we then call a PID function for 
+	*			each wheel independently,
+	*			Then we publish the new motor powers.
+	*/
+
+	current_L_vel = array->data[0];
+	current_R_vel = array->data[1];
+
+	// Now it seems we need to rip up and redistribute some of the old code... Wait for Samuel.
+
 }
 
 // set a the new walues to the messge
@@ -122,8 +149,9 @@ int main(int argc, char **argv)
   
   //set upp comunication chanels
   // TODO add the other chanels
-  motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, BUFER_SIZE);
-  ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, BUFER_SIZE, joyCallback); 
+  motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
+  ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
+  ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
   ros::spin();	
 
 
