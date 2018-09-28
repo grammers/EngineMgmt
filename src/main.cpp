@@ -45,23 +45,12 @@ void setVelMsg();
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
   // read input form joj a start up securety
-	// to start runing tirger bout trigers ones
-	if (init_joy)
-	{
-		speed_referens = 50 * (-msg->axes[5] + msg->axes[2]);
+	speed_referens = 50 * (-msg->axes[5] + msg->axes[2]);
 	
-		stering_referens = msg->axes[0]; 
-		if (stering_referens >= 0) stering_referens = pow(stering_referens, 3);
-		else stering_referens = pow(stering_referens, 3);
-		stering_referens = stering_referens * 100;
-	}
-	else
-	{
-		speed_referens = 0;
-		if (msg->axes[5] != 0.0) r_triger = true;
-		if (msg->axes[2] != 0.0) l_triger = true;
-		if (r_triger && l_triger) init_joy = true;
-	}		
+	stering_referens = msg->axes[0]; 
+	if (stering_referens >= 0) stering_referens = pow(stering_referens, 3);
+	else stering_referens = pow(stering_referens, 3);
+	stering_referens = stering_referens * 100;
 
   //test if button hav ben presed
 	if (msg->buttons[0] == 1 && s_singel_press != msg->buttons[0])
