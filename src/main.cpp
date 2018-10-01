@@ -162,7 +162,7 @@ int main(int argc, char **argv)
   */
 
 
-  float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, P=2, D=0, I=0.01, uL=0, uR=0;
+  float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, P=70, D=0, I=15, uL=0, uR=0;
   float updatefreq = LOOP_FREQ;
 
   while(ros::ok()){
@@ -173,8 +173,10 @@ int main(int argc, char **argv)
 
 	Lle = Le;
 	Rle = Re;
-	Le =  vel_msg.linear.x - current_L_vel;
-	Re =  vel_msg.linear.y - current_R_vel;
+	Le =  vel_msg.linear.x/100 - current_L_vel;
+	Re =  vel_msg.linear.y/100 - current_R_vel;
+	
+//	if Lea+Le
 	Lea = Le+Lea;
 	Rea = Re+Rea;
 	uL = P*Le + D*updatefreq*(Le-Lle) + I*Lea;
@@ -184,10 +186,11 @@ int main(int argc, char **argv)
 	else if(uL<-100) uL=-100;
 	if(uR>100) uR=100;
 	else if(uR<-100) uR=-100;
-	pwr_msg.linear.x = uL;
-	pwr_msg.linear.y = uR;	
 
-	//ROS_INFO("Le: %f, Lle: %f, Lea: %f",Le, Lle, Lea);
+	pwr_msg.linear.x = uL + vel_msg.linear.x*0.5;
+	pwr_msg.linear.y = uR + vel_msg.linear.y*0.5;
+
+	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",vel_msg.linear.x/100, Le, Lle, Lea);
 
 	pubEnginePower();
   	ros::spinOnce();
