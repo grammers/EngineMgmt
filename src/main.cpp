@@ -40,54 +40,49 @@ float stering_referens = 0;
 float current_L_vel = 0;
 float current_R_vel = 0;
 
-bool stop_button = false;
-
-bool init_joy = false;
-bool l_triger = false;
-bool r_triger = false;
-
-int s_singel_press = 0;
 double joy_timer;
 
+struct toggelButton {
+	bool on;
+	bool previews;
+};
+struct toggelButton handbreak = {.on = true, .previews = 0}; // A 
+
 void pubEnginePower();
+void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
+void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
+float inputSens(float ref);
+void toggelButton(int val, struct toggelButton *b);
+// temporary functions myght change or be replased when real controler implements
 void sterToSpeedBallanser();
 void setVelMsg();
-void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
+void PID(float *Le, float *Re, float *Lle, float *Rle,
+		 float *Lea, float *Rea, float P, float D,
+		 float I, float *uL, float *uR, float updatefreq);
 
 // reseves new data from joy
-// TODO stor data and macke calebrations for mor fansy controling befor publiching
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-  // read input form joj a start up securety
-	// to start runing tirger bout trigers ones
-	if (init_joy)
-	{
-		speed_referens = 50 * (-msg->axes[5] + msg->axes[2]);
-	
-		stering_referens = msg->axes[0]; 
-		if (stering_referens >= 0) stering_referens = pow(stering_referens, 3);
-		else stering_referens = pow(stering_referens, 3);
-		stering_referens = stering_referens * 100;
-	}
-	else
-	{
-		speed_referens = 0;
-		if (msg->axes[5] != 0.0) r_triger = true;
-		if (msg->axes[2] != 0.0) l_triger = true;
-		if (r_triger && l_triger) init_joy = true;
-	}		
+  // read input form joj
+	speed_referens = 50 * (-msg->axes[5] + msg->axes[2]);
+	stering_referens = inputSens(msg->axes[0]); 
 
-  //test if button hav ben presed
-	if (msg->buttons[0] == 1 && s_singel_press != msg->buttons[0])
- 	{
-		stop_button = !stop_button;
- 	}
+  	//test if button hav ben presed
+	toggelButton(msg->buttons[0], &handbreak);
+ 	
+	joy_timer = clock();
+}
 
-	s_singel_press = msg->buttons[0];
- 	joy_timer = clock();
-	
-	sterToSpeedBallanser();
-	
+// adjust input seneetivety
+float inputSens(float ref){
+	return pow(ref, 3) * 100;
+}
+
+// lodig to handel buttons that chud toggel
+void toggelButton(int val, struct toggelButton *b){
+		if (val == 1 && !b->previews)
+			b->on = !b->on;
+		b->previews = (val == 1);
 }
 
 // enshor that the speed dont exsit full power
@@ -118,7 +113,7 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 // set a the new walues to the messge
 void setVelMsg(){
 	
-	if (((joy_timer - clock()) < TIME_OUT) && !stop_button)
+	if (((joy_timer - clock()) < TIME_OUT) && !handbreak.on)
 	{
 		// changes if in revers to not hav inverted stering in revers
 		if (speed_referens < 0) stering_referens = -stering_referens;
@@ -140,6 +135,39 @@ void pubEnginePower()
 	
 	motor_power_pub.publish(pwr_msg);
 	return;
+}
+
+// PID
+void PID(float *Le, float *Re, float *Lle, float *Rle,
+		 float *Lea, float *Rea, float P, float D,
+		 float I, float *uL, float *uR, float updatefreq){
+
+	sterToSpeedBallanser();
+  	setVelMsg();
+	
+	//PID
+
+	*Lle = *Le;
+	*Rle = *Re;
+	*Le =  vel_msg.linear.x/100 - current_L_vel;
+	*Re =  vel_msg.linear.y/100 - current_R_vel;
+	
+	//	if Lea+Le
+	*Lea = *Le + *Lea;
+	*Rea = *Re + *Rea;
+	*uL = P * *Le + D * updatefreq * (*Le- *Lle) + I* *Lea;
+	*uR = P * *Re + D * updatefreq * (*Re- *Rle) + I* *Rea; 
+
+	if(*uL>100) *uL=100;
+	else if(*uL<-100) *uL=-100;
+	if(*uR>100) *uR=100;
+	else if(*uR<-100) *uR=-100;
+
+	pwr_msg.linear.x = *uL + vel_msg.linear.x * 0.5;
+	pwr_msg.linear.y = *uR + vel_msg.linear.y * 0.5;
+
+	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",vel_msg.linear.x/100, *Le, *Lle, *Lea);
+
 }
 
 int main(int argc, char **argv)
@@ -167,30 +195,8 @@ int main(int argc, char **argv)
 
   while(ros::ok()){
 
-  	setVelMsg();
-	
-	//PID
-
-	Lle = Le;
-	Rle = Re;
-	Le =  vel_msg.linear.x/100 - current_L_vel;
-	Re =  vel_msg.linear.y/100 - current_R_vel;
-	
-//	if Lea+Le
-	Lea = Le+Lea;
-	Rea = Re+Rea;
-	uL = P*Le + D*updatefreq*(Le-Lle) + I*Lea;
-	uR = P*Re + D*updatefreq*(Re-Rle) + I*Rea; 
-
-	if(uL>100) uL=100;
-	else if(uL<-100) uL=-100;
-	if(uR>100) uR=100;
-	else if(uR<-100) uR=-100;
-
-	pwr_msg.linear.x = uL + vel_msg.linear.x*0.5;
-	pwr_msg.linear.y = uR + vel_msg.linear.y*0.5;
-
-	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",vel_msg.linear.x/100, Le, Lle, Lea);
+	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
+;	
 
 	pubEnginePower();
   	ros::spinOnce();
