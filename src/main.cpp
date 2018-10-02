@@ -5,11 +5,19 @@
 #include <time.h>
 #include <math.h>
 
+#include "std_msgs/Float32MultiArray.h"
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+
 //constant setup variabels change thise values here
 #define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
 #define ADVERTISE_POWER "motor_power" //publichng chanel
-#define BUFER_SIZE 200
+#define POWER_BUFFER_SIZE 200
+#define SUBSCRIBE_ENCODER "wheel_velocity"
+#define ENCODER_BUFFER_SIZE 5
+#define LOOP_FREQ 20
+
 //#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
 #define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
@@ -21,47 +29,63 @@
 
 // message deglaraions
 geometry_msgs::Twist vel_msg;
+geometry_msgs::Twist pwr_msg;
 ros::Publisher motor_power_pub;
+
+std_msgs::Float32MultiArray wheel_velocities;
 
 // TODO maybi change to a strukt. Global = bad!
 float speed_referens = 0;
 float stering_referens = 0;
+float current_L_vel = 0;
+float current_R_vel = 0;
 
-bool stop_button = false;
-
-bool init_joy = false;
-bool l_triger = false;
-bool r_triger = false;
-
-int s_singel_press = 0;
 double joy_timer;
 
+struct toggelButton {
+	bool on;
+	bool previews;
+};
+struct toggelButton handbreak = {.on = false, .previews = false}; // A 
+struct toggelButton startUp = {.on = true, .previews = false}; // start
+
 void pubEnginePower();
+void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
+void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
+float inputSens(float ref);
+void toggelButton(int val, struct toggelButton *b);
+void emergensyStop();
+// temporary functions myght change or be replased when real controler implements
 void sterToSpeedBallanser();
 void setVelMsg();
+void PID(float *Le, float *Re, float *Lle, float *Rle,
+		 float *Lea, float *Rea, float P, float D,
+		 float I, float *uL, float *uR, float updatefreq);
 
 // reseves new data from joy
-// TODO stor data and macke calebrations for mor fansy controling befor publiching
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-  // read input form joj a start up securety
+  // read input form joj
 	speed_referens = 50 * (-msg->axes[5] + msg->axes[2]);
-	
-	stering_referens = msg->axes[0]; 
-	if (stering_referens >= 0) stering_referens = pow(stering_referens, 3);
-	else stering_referens = pow(stering_referens, 3);
-	stering_referens = stering_referens * 100;
+	stering_referens = inputSens(msg->axes[0]); 
 
-  //test if button hav ben presed
-	if (msg->buttons[0] == 1 && s_singel_press != msg->buttons[0])
- 	{
-		stop_button = !stop_button;
- 	}
+  	//test if button hav ben presed
+	toggelButton(msg->buttons[0], &handbreak);
+ 	toggelButton(msg->buttons[7], &startUp);
 
-	s_singel_press = msg->buttons[0];
- 	joy_timer = clock();
-	
- 	pubEnginePower();	//TODO move to location  where control lodgik wont it to be called
+	joy_timer = clock();
+}
+
+// adjust input seneetivety
+float inputSens(float ref){
+	return pow(ref, 3) * 100;
+}
+
+// lodig to handel buttons that chud toggel
+void toggelButton(int val, struct toggelButton *b){
+		if (val == 1 && !b->previews)
+			b->on = !b->on;
+		b->previews = (val == 1);
 }
 
 // enshor that the speed dont exsit full power
@@ -75,10 +99,24 @@ void sterToSpeedBallanser(){
 	return;
 }
 
+void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
+{
+	/* idea: reference for both wheels come from joy, processed and globally declared variables
+	*			The encoders provide feedvack in this function, where we then call a PID function for 
+	*			each wheel independently,
+	*			Then we publish the new motor powers.
+	*/
+
+	current_L_vel = array->data[0];
+	current_R_vel = array->data[1];
+	//ROS_INFO("L_speed %f\n",current_L_vel);
+
+}
+
 // set a the new walues to the messge
 void setVelMsg(){
-	sterToSpeedBallanser();
-	if (((joy_timer - clock()) < TIME_OUT) && !stop_button)
+	
+	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on)
 	{
 		// changes if in revers to not hav inverted stering in revers
 		if (speed_referens < 0) stering_referens = -stering_referens;
@@ -94,12 +132,52 @@ void setVelMsg(){
 	return;
 }
 
+// Emergensi stop fors to stop
+void emergensyStop(){
+	if (handbreak.on){
+		vel_msg.linear.x = 0;
+		vel_msg.linear.y = 0;
+	}
+}
+
 // publiche when new stering diraktions is set
 void pubEnginePower()
 {
-	setVelMsg();
-	motor_power_pub.publish(vel_msg);
+	motor_power_pub.publish(pwr_msg);
 	return;
+}
+
+// PID
+void PID(float *Le, float *Re, float *Lle, float *Rle,
+		 float *Lea, float *Rea, float P, float D,
+		 float I, float *uL, float *uR, float updatefreq){
+
+	sterToSpeedBallanser();
+  	setVelMsg();
+	
+	//PID
+
+	*Lle = *Le;
+	*Rle = *Re;
+	*Le =  vel_msg.linear.x/100 - current_L_vel;
+	*Re =  vel_msg.linear.y/100 - current_R_vel;
+	
+	//	if Lea+Le
+	*Lea = *Le + *Lea;
+	*Rea = *Re + *Rea;
+	*uL = P * *Le + D * updatefreq * (*Le- *Lle) + I* *Lea;
+	*uR = P * *Re + D * updatefreq * (*Re- *Rle) + I* *Rea; 
+
+	if(*uL>100) *uL=100;
+	else if(*uL<-100) *uL=-100;
+	if(*uR>100) *uR=100;
+	else if(*uR<-100) *uR=-100;
+
+	pwr_msg.linear.x = *uL + vel_msg.linear.x * 0.5;
+	pwr_msg.linear.y = *uR + vel_msg.linear.y * 0.5;
+
+	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",vel_msg.linear.x/100, *Le, *Lle, *Lea);
+
 }
 
 int main(int argc, char **argv)
@@ -108,14 +186,36 @@ int main(int argc, char **argv)
   ros::init(argc, argv, NODE_NAME);
 
   ros::NodeHandle n;
+  ros::Rate loop_rate(LOOP_FREQ);
   
   //set upp comunication chanels
   // TODO add the other chanels
-  motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, BUFER_SIZE);
-  ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, BUFER_SIZE, joyCallback); 
-  ros::spin();	
+  motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
+  ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
+  ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
+  //ros::spin();
 
+  /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
+  *  		   current_L_vel, ie y
+  */
+
+
+  float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, P=70, D=0, I=15, uL=0, uR=0;
+  float updatefreq = LOOP_FREQ;
+
+  while(ros::ok()){
+
+	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
+	
+
+	emergensyStop();
+	pubEnginePower();
+  	ros::spinOnce();
+  	loop_rate.sleep();
+
+  }
 
   return 0;
 }
+
 // %EndTag(FULLTEXT)%
