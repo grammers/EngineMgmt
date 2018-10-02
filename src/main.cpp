@@ -75,7 +75,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
- 	toggelButton(msg->buttons[7], &startUp);
+ 	toggleButton(msg->buttons[7], &startUp);
 
 	joy_timer = clock();
 }
@@ -99,11 +99,11 @@ void toggleButton(int val, struct toggleButton *b){
 
 // ensure that the speed don't exist full power
 void sterToSpeedBalancer(){
-	while (abs(speed_reference) + abs(stering_reference) > 100){
+	while (abs(speed_reference) + abs(steering_reference) > 100){
 		if (speed_reference > 0) speed_reference--;
 		else speed_reference++;
-		if (stering_reference > 0) stering_reference--;
-		else stering_reference++;
+		if (steering_reference > 0) steering_reference--;
+		else steering_reference++;
 	}
 	return;
 }
@@ -128,9 +128,9 @@ void setVelMsg(){
 	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on)
 	{
 		// changes if in reverse to not have inverted steering in reverse
-		if (speed_reference < 0) stering_reference = -stering_reference;
-		vel_msg.linear.x = speed_reference - stering_reference;
-		vel_msg.linear.y = speed_reference + stering_reference;
+		if (speed_reference < 0) steering_reference = -steering_reference;
+		vel_msg.linear.x = speed_reference - steering_reference;
+		vel_msg.linear.y = speed_reference + steering_reference;
 
 	}
 	else
