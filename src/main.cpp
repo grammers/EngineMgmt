@@ -53,7 +53,6 @@ struct toggleButton {
 };
 struct toggleButton handbreak = {.on = false, .previews = false}; // A 
 struct toggleButton startUp = {.on = true, .previews = false}; // start
-int pressed_button;
 
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
@@ -78,7 +77,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
  	toggleButton(msg->buttons[7], &startUp);
-	pressed_button = msg->buttons[1];
+	emergency_override = (msg->buttons[1] == 1); //B Button
 
 	joy_timer = clock();
 }
@@ -87,12 +86,6 @@ void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 {
 	coll_stop = lidar_stop->data;
 }
-
-void overrideButton(){
-	if(pressed_button == 1) emergency_override = true;
-	else emergency_override = false;
-}
-
 
 // adjust input sensitivity
 float inputSens(float ref){
@@ -223,8 +216,6 @@ int main(int argc, char **argv)
   float updatefreq = LOOP_FREQ;
 
   while(ros::ok()){
-
-	overrideButton();
 
 	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
 	
