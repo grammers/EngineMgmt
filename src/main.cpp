@@ -46,13 +46,15 @@ struct toggelButton {
 	bool on;
 	bool previews;
 };
-struct toggelButton handbreak = {.on = true, .previews = 0}; // A 
+struct toggelButton handbreak = {.on = false, .previews = false}; // A 
+struct toggelButton startUp = {.on = true, .previews = false}; // start
 
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
 float inputSens(float ref);
 void toggelButton(int val, struct toggelButton *b);
+void emergensyStop();
 // temporary functions myght change or be replased when real controler implements
 void sterToSpeedBallanser();
 void setVelMsg();
@@ -69,7 +71,8 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
   	//test if button hav ben presed
 	toggelButton(msg->buttons[0], &handbreak);
- 	
+ 	toggelButton(msg->buttons[7], &startUp);
+
 	joy_timer = clock();
 }
 
@@ -113,7 +116,7 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 // set a the new walues to the messge
 void setVelMsg(){
 	
-	if (((joy_timer - clock()) < TIME_OUT) && !handbreak.on)
+	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on)
 	{
 		// changes if in revers to not hav inverted stering in revers
 		if (speed_referens < 0) stering_referens = -stering_referens;
@@ -129,10 +132,18 @@ void setVelMsg(){
 	return;
 }
 
+// Emergensi stop fors to stop
+void emergensyStop(){
+	if (handbreak.on){
+		vel_msg.linear.x = 0;
+		vel_msg.linear.y = 0;
+	}
+}
+
 // publiche when new stering diraktions is set
 void pubEnginePower()
 {
-	
+	emergensyStop();
 	motor_power_pub.publish(pwr_msg);
 	return;
 }
