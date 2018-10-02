@@ -59,7 +59,8 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
 float inputSens(float ref);
 void toggleButton(int val, struct toggleButton *b);
-void emergencyStop();
+void emergencyStop(float *Le, float *Re, float *Lle, float *Rle, 
+					float *Lea, float *Rea, float *uL, float *uR);
 // temporary functions might change or be replaced when real controller implements
 void sterToSpeedBalancer();
 void setVelMsg();
@@ -144,10 +145,13 @@ void setVelMsg(){
 }
 
 // Emergency stop force to stop
-void emergencyStop(){
+void emergencyStop(float *Le, float *Re, float *Lle, float *Rle, 
+					float *Lea, float *Rea, float *uL, float *uR){
 	if (handbreak.on){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
+		*Le = 0; *Re = 0; *Lle = 0; *Rle = 0; 
+		*Lea = 0; *Rea = 0; *uL = 0; *uR = 0;
 	}
 }
 
@@ -222,7 +226,7 @@ int main(int argc, char **argv)
 	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
 	
 
-	emergencyStop();
+	emergencyStop(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR);
 	pubEnginePower();
   	ros::spinOnce();
   	loop_rate.sleep();
