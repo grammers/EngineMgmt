@@ -45,6 +45,7 @@ float current_R_vel = 0;
 double joy_timer;
 
 bool coll_stop;
+bool emergency_override;
 
 struct toggleButton {
 	bool on;
@@ -52,7 +53,7 @@ struct toggleButton {
 };
 struct toggleButton handbreak = {.on = false, .previews = false}; // A 
 struct toggleButton startUp = {.on = true, .previews = false}; // start
-struct toggleButton emergency_override = {.on = false, .previews = false};//B
+int pressed_button;
 
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
@@ -77,7 +78,9 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
  	toggleButton(msg->buttons[7], &startUp);
-	toggleButton(msg->buttons[1], &emergency_override);
+	pressed_button = msg->buttons[1];
+	
+	overrideButton();
 
 	joy_timer = clock();
 }
@@ -86,6 +89,12 @@ void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 {
 	coll_stop = lidar_stop->data;
 }
+
+void overrideButton(){
+	if(pressed_button == 1) emergency_override = true;
+	else emergency_override = false;
+}
+
 
 // adjust input sensitivity
 float inputSens(float ref){
@@ -127,7 +136,7 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 // set the new values to the message
 void setVelMsg(){
 	
-	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override.on))
+	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
 	{
 		// changes if in reverse to not have inverted steering in reverse
 		if (speed_reference < 0) steering_reference = -steering_reference;
