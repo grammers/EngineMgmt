@@ -143,7 +143,6 @@ void emergensyStop(){
 // publiche when new stering diraktions is set
 void pubEnginePower()
 {
-	emergensyStop();
 	motor_power_pub.publish(pwr_msg);
 	return;
 }
@@ -207,8 +206,9 @@ int main(int argc, char **argv)
   while(ros::ok()){
 
 	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
-;	
+	
 
+	emergensyStop();
 	pubEnginePower();
   	ros::spinOnce();
   	loop_rate.sleep();
