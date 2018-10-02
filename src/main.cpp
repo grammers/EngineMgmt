@@ -45,6 +45,7 @@ float current_R_vel = 0;
 double joy_timer;
 
 bool coll_stop;
+bool emergency_override;
 
 struct toggleButton {
 	bool on;
@@ -76,6 +77,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
  	toggleButton(msg->buttons[7], &startUp);
+	emergency_override = (msg->buttons[1] == 1); //B Button
 
 	joy_timer = clock();
 }
@@ -125,7 +127,7 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 // set the new values to the message
 void setVelMsg(){
 	
-	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on)
+	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
 	{
 		// changes if in reverse to not have inverted steering in reverse
 		if (speed_reference < 0) steering_reference = -steering_reference;
@@ -143,7 +145,7 @@ void setVelMsg(){
 
 // Emergency stop force to stop
 void emergencyStop(){
-	if (handbreak.on || coll_stop){
+	if (handbreak.on){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
 	}
@@ -215,9 +217,9 @@ int main(int argc, char **argv)
 
   while(ros::ok()){
 
-	sterToSpeedBalancer();
-  	setVelMsg();
-//	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
+	//sterToSpeedBalancer();
+  	//setVelMsg();
+	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
 	
 
 	emergencyStop();
