@@ -10,35 +10,35 @@
 #include "std_msgs/MultiArrayDimension.h"
 #include "std_msgs/Bool.h"
 
-//constant setup variabels change thise values here
+//constant setup variables change those values here
 #define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
 #define STOP_SUB_NODE "lidar_stop"
-#define ADVERTISE_POWER "motor_power" //publichng chanel
+#define ADVERTISE_POWER "motor_power" //publishing channel
 #define POWER_BUFFER_SIZE 200
 #define SUBSCRIBE_ENCODER "wheel_velocity"
 #define ENCODER_BUFFER_SIZE 5
 #define LOOP_FREQ 20
 
-//#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
-#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
+//#define PUSH_SPEED 250 // minimal ms between toggle button register
+#define TIME_OUT 500 // if no joy msg arrives in this time (ms) will it stop TODO test
 
-// joy msg->axes array lay out; for a x-box 360 controller
-// [left stik RL(0) , left stik upp/down(1), LT(2) ,right stik RL(3) , right stik upp/down(4) , RT(5) , pad RL(6), pad upp/down(7) ]
-// joy msg->button array lay out
-// [ A, B, X, Y, LB, RB, back, start, XBOX, L-stik, R-stik]
+// joy msg->axes array layout; for a x-box 360 controller
+// [left stick RL(0) , left stick up/down(1), LT(2) ,right stick RL(3) , right stick up/down(4) , RT(5) , pad RL(6), pad up/down(7) ]
+// joy msg->button array layout
+// [ A, B, X, Y, LB, RB, back, start, XBOX, L-stick, R-stick]
 
 
-// message deglaraions
+// message declarations
 geometry_msgs::Twist vel_msg;
 geometry_msgs::Twist pwr_msg;
 ros::Publisher motor_power_pub;
 
 std_msgs::Float32MultiArray wheel_velocities;
 
-// TODO maybi change to a strukt. Global = bad!
-float speed_referens = 0;
-float stering_referens = 0;
+// TODO maybe change to a struct. Global = bad!
+float speed_reference = 0;
+float steering_reference = 0;
 float current_L_vel = 0;
 float current_R_vel = 0;
 
@@ -46,35 +46,35 @@ double joy_timer;
 
 bool coll_stop;
 
-struct toggelButton {
+struct toggleButton {
 	bool on;
 	bool previews;
 };
-struct toggelButton handbreak = {.on = false, .previews = false}; // A 
-struct toggelButton startUp = {.on = true, .previews = false}; // start
+struct toggleButton handbreak = {.on = false, .previews = false}; // A 
+struct toggleButton startUp = {.on = true, .previews = false}; // start
 
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
 float inputSens(float ref);
-void toggelButton(int val, struct toggelButton *b);
-void emergensyStop();
-// temporary functions myght change or be replased when real controler implements
-void sterToSpeedBallanser();
+void toggleButton(int val, struct toggleButton *b);
+void emergencyStop();
+// temporary functions might change or be replaced when real controller implements
+void sterToSpeedBalancer();
 void setVelMsg();
 void PID(float *Le, float *Re, float *Lle, float *Rle,
 		 float *Lea, float *Rea, float P, float D,
 		 float I, float *uL, float *uR, float updatefreq);
 
-// reseves new data from joy
+// receives new data from joy
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-  // read input form joj
-	speed_referens = 50 * (-msg->axes[5] + msg->axes[2]);
-	stering_referens = inputSens(msg->axes[0]); 
+  // read input form joy
+	speed_reference = 50 * (-msg->axes[5] + msg->axes[2]);
+	steering_reference = inputSens(msg->axes[0]); 
 
-  	//test if button hav ben presed
-	toggelButton(msg->buttons[0], &handbreak);
+  	//test if button have been pressed
+	toggleButton(msg->buttons[0], &handbreak);
  	toggelButton(msg->buttons[7], &startUp);
 
 	joy_timer = clock();
@@ -85,25 +85,25 @@ void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 	coll_stop = lidar_stop->data;
 }
 
-// adjust input seneetivety
+// adjust input sensitivity
 float inputSens(float ref){
 	return pow(ref, 3) * 100;
 }
 
-// lodig to handel buttons that chud toggel
-void toggelButton(int val, struct toggelButton *b){
+// loadig to handle buttons that should toggle
+void toggleButton(int val, struct toggleButton *b){
 		if (val == 1 && !b->previews)
 			b->on = !b->on;
 		b->previews = (val == 1);
 }
 
-// enshor that the speed dont exsit full power
-void sterToSpeedBallanser(){
-	while (abs(speed_referens) + abs(stering_referens) > 100){
-		if (speed_referens > 0) speed_referens--;
-		else speed_referens++;
-		if (stering_referens > 0) stering_referens--;
-		else stering_referens++;
+// ensure that the speed don't exist full power
+void sterToSpeedBalancer(){
+	while (abs(speed_reference) + abs(stering_reference) > 100){
+		if (speed_reference > 0) speed_reference--;
+		else speed_reference++;
+		if (stering_reference > 0) stering_reference--;
+		else stering_reference++;
 	}
 	return;
 }
@@ -111,7 +111,7 @@ void sterToSpeedBallanser(){
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
 	/* idea: reference for both wheels come from joy, processed and globally declared variables
-	*			The encoders provide feedvack in this function, where we then call a PID function for 
+	*			The encoders provide feedback in this function, where we then call a PID function for 
 	*			each wheel independently,
 	*			Then we publish the new motor powers.
 	*/
@@ -122,15 +122,15 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 
 }
 
-// set a the new walues to the messge
+// set the new values to the message
 void setVelMsg(){
 	
 	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on)
 	{
-		// changes if in revers to not hav inverted stering in revers
-		if (speed_referens < 0) stering_referens = -stering_referens;
-		vel_msg.linear.x = speed_referens - stering_referens;
-		vel_msg.linear.y = speed_referens + stering_referens;
+		// changes if in reverse to not have inverted steering in reverse
+		if (speed_reference < 0) stering_reference = -stering_reference;
+		vel_msg.linear.x = speed_reference - stering_reference;
+		vel_msg.linear.y = speed_reference + stering_reference;
 
 	}
 	else
@@ -141,15 +141,15 @@ void setVelMsg(){
 	return;
 }
 
-// Emergensi stop fors to stop
-void emergensyStop(){
-	if (handbreak.on){
+// Emergency stop force to stop
+void emergencyStop(){
+	if (handbreak.on || coll_stop){
 		vel_msg.linear.x = 0;
 		vel_msg.linear.y = 0;
 	}
 }
 
-// publiche when new stering diraktions is set
+// publish when new steering directions are set
 void pubEnginePower()
 {
 	motor_power_pub.publish(pwr_msg);
@@ -161,7 +161,7 @@ void PID(float *Le, float *Re, float *Lle, float *Rle,
 		 float *Lea, float *Rea, float P, float D,
 		 float I, float *uL, float *uR, float updatefreq){
 
-	sterToSpeedBallanser();
+	sterToSpeedBalancer();
   	setVelMsg();
 	
 	//PID
@@ -197,8 +197,8 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::Rate loop_rate(LOOP_FREQ);
   
-  //set upp comunication chanels
-  // TODO add the other chanels
+  //set up communication channels
+  // TODO add the other channels
   motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
   ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
   ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
@@ -218,7 +218,7 @@ int main(int argc, char **argv)
 	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
 	
 
-	emergensyStop();
+	emergencyStop();
 	pubEnginePower();
   	ros::spinOnce();
   	loop_rate.sleep();
