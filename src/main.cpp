@@ -8,10 +8,12 @@
 #include "std_msgs/Float32MultiArray.h"
 #include "std_msgs/MultiArrayLayout.h"
 #include "std_msgs/MultiArrayDimension.h"
+#include "std_msgs/Bool.h"
 
 //constant setup variabels change thise values here
 #define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
+#define STOP_SUB_NODE "lidar_stop"
 #define ADVERTISE_POWER "motor_power" //publichng chanel
 #define POWER_BUFFER_SIZE 200
 #define SUBSCRIBE_ENCODER "wheel_velocity"
@@ -41,6 +43,8 @@ float current_L_vel = 0;
 float current_R_vel = 0;
 
 double joy_timer;
+
+bool coll_stop;
 
 struct toggelButton {
 	bool on;
@@ -74,6 +78,11 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
  	toggelButton(msg->buttons[7], &startUp);
 
 	joy_timer = clock();
+}
+
+void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
+{
+	coll_stop = lidar_stop->data;
 }
 
 // adjust input seneetivety
@@ -193,6 +202,7 @@ int main(int argc, char **argv)
   motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
   ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
   ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
+  ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
   //ros::spin();
 
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
