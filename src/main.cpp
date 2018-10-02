@@ -144,8 +144,8 @@ void setVelMsg(){
 // Emergency stop force to stop
 void emergencyStop(){
 	if (handbreak.on || coll_stop){
-		vel_msg.linear.x = 0;
-		vel_msg.linear.y = 0;
+		pwr_msg.linear.x = 0;
+		pwr_msg.linear.y = 0;
 	}
 }
 
@@ -215,7 +215,9 @@ int main(int argc, char **argv)
 
   while(ros::ok()){
 
-	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
+	sterToSpeedBalancer();
+  	setVelMsg();
+//	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
 	
 
 	emergencyStop();
