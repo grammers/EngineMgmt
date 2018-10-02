@@ -79,8 +79,6 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 	toggleButton(msg->buttons[0], &handbreak);
  	toggleButton(msg->buttons[7], &startUp);
 	pressed_button = msg->buttons[1];
-	
-	overrideButton();
 
 	joy_timer = clock();
 }
@@ -225,6 +223,8 @@ int main(int argc, char **argv)
   float updatefreq = LOOP_FREQ;
 
   while(ros::ok()){
+
+	overrideButton();
 
 	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
 	
