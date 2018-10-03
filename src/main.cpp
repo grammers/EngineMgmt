@@ -13,13 +13,12 @@
 #define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
 #define ADVERTISE_POWER "motor_power" //publichng chanel
-//#define POWER_BUFFER_SIZE 200
+#define POWER_BUFFER_SIZE 200
 #define SUBSCRIBE_ENCODER "wheel_velocity"
-//#define ENCODER_BUFFER_SIZE 5
-//#define LOOP_FREQ 20
+#define ENCODER_BUFFER_SIZE 5
+#define LOOP_FREQ 20
 
-//#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
-//#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
+#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
 // joy msg->axes array lay out; for a x-box 360 controller
 // [left stik RL(0) , left stik upp/down(1), LT(2) ,right stik RL(3) , right stik upp/down(4) , RT(5) , pad RL(6), pad upp/down(7) ]
@@ -35,10 +34,10 @@ ros::Publisher motor_power_pub;
 std_msgs::Float32MultiArray wheel_velocities;
 
 // setings
-int POWER_BUFFER_SIZE;
-int ENCODER_BUFFER_SIZE;
-int LOOP_FREQ;
-int TIME_OUT;
+//int POWER_BUFFER_SIZE;
+//int ENCODER_BUFFER_SIZE;
+//int LOOP_FREQ;
+//int TIME_OUT;
 // PID param
 float P;
 float I;
@@ -85,6 +84,8 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
  	toggelButton(msg->buttons[7], &startUp);
 
 	joy_timer = clock();
+
+//	ROS_INFO("debug s: %f, dir: %f, hand: %f, start: %f", speed_referens, stering_referens, handbreak.on, startUp.on);
 }
 
 // adjust input seneetivety
@@ -147,8 +148,8 @@ void setVelMsg(){
 // Emergensi stop fors to stop
 void emergensyStop(){
 	if (handbreak.on){
-		vel_msg.linear.x = 0;
-		vel_msg.linear.y = 0;
+		pwr_msg.linear.x = 0;
+		pwr_msg.linear.y = 0;
 	}
 }
 
@@ -156,6 +157,7 @@ void emergensyStop(){
 void pubEnginePower()
 {
 	motor_power_pub.publish(pwr_msg);
+	ROS_INFO("%f %f", pwr_msg.linear.x, pwr_msg.linear.y);
 	return;
 }
 
@@ -165,7 +167,8 @@ void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
 
 	sterToSpeedBallanser();
   	setVelMsg();
-	
+
+	ROS_INFO("%f %f", vel_msg.linear.x, vel_msg.linear.y);
 	//PID
 
 	*Lle = *Le;
@@ -197,10 +200,20 @@ int main(int argc, char **argv)
 
   ros::init(argc, argv, NODE_NAME);
 
-  ros::NodeHandle n("~");
+//  ros::NodeHandle n("~");
+	ros::NodeHandle n;
   ros::Rate loop_rate(LOOP_FREQ);
   
-  //set upp comunication chanels
+
+//	n.param<float>("P",P,70.0);
+//	n.param<float>("I",I,15.0);
+//	n.param<float>("D",D,0.0);
+//	n.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
+//	n.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
+//	n.param<int>("loop_freq",LOOP_FREQ,20);
+//	n.param<int>("time_out",TIME_OUT,500);
+  
+//set upp comunication chanels
   // TODO add the other chanels
   motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
   ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
@@ -208,27 +221,21 @@ int main(int argc, char **argv)
   //ros::spin();
 
 	// for diagnostik print
-
-	n.param<float>("P",P,70.0);
-	n.param<float>("I",I,15.0);
-	n.param<float>("D",D,0.0);
-	n.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
-	n.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
-	n.param<int>("loop_freq",LOOP_FREQ,20);
-	n.param<int>("time_out",TIME_OUT,500);
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
   *  		   current_L_vel, ie y
   */
 
-
+	P = 70;
+	I = 15;
+	D = 0;
   float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, uL=0, uR=0;
-  
+	float update_freq = LOOP_FREQ;  
   while(ros::ok()){
 
-	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
+	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, update_freq);
 	
 
-	emergensyStop();
+	//emergensyStop();
 	pubEnginePower();
   	ros::spinOnce();
   	loop_rate.sleep();
