@@ -63,6 +63,7 @@ void emergencyStop(float *Le, float *Re, float *Lle, float *Rle,
 					float *Lea, float *Rea, float *uL, float *uR);
 // temporary functions might change or be replaced when real controller implements
 void sterToSpeedBalancer();
+void controlerStandIn();
 void setVelMsg();
 void PID(float *Le, float *Re, float *Lle, float *Rle,
 		 float *Lea, float *Rea, float P, float D,
@@ -81,6 +82,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 	emergency_override = (msg->buttons[1] == 1); //B Button
 
 	joy_timer = clock();
+	if (speed_reference < 0) steering_reference = -steering_reference;
 }
 
 void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
@@ -131,7 +133,6 @@ void setVelMsg(){
 	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
 	{
 		// changes if in reverse to not have inverted steering in reverse
-		if (speed_reference < 0) steering_reference = -steering_reference;
 		vel_msg.linear.x = speed_reference - steering_reference;
 		vel_msg.linear.y = speed_reference + steering_reference;
 
@@ -195,6 +196,14 @@ void PID(float *Le, float *Re, float *Lle, float *Rle,
 
 }
 
+void controlerStandIn()
+{
+	sterToSpeedBalancer();
+	setVelMsg();
+	pwr_msg.linear.x = vel_msg.linear.x;
+	pwr_msg.linear.y = vel_msg.linear.y;
+}
+
 int main(int argc, char **argv)
 {
 
@@ -223,8 +232,9 @@ int main(int argc, char **argv)
 
 	//sterToSpeedBalancer();
   	//setVelMsg();
-	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
-	
+//	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
+		
+	controlerStandIn();	
 
 	emergencyStop(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR);
 	pubEnginePower();
