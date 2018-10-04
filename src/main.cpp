@@ -13,12 +13,12 @@
 #define NODE_NAME "engine_mgmt"
 #define JOY_SUB_NODE "joy"
 #define ADVERTISE_POWER "motor_power" //publichng chanel
-#define POWER_BUFFER_SIZE 200
+//#define POWER_BUFFER_SIZE 200
 #define SUBSCRIBE_ENCODER "wheel_velocity"
-#define ENCODER_BUFFER_SIZE 5
-#define LOOP_FREQ 20
+//#define ENCODER_BUFFER_SIZE 5
+//#define LOOP_FREQ 20
 
-#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
+//#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
 // joy msg->axes array lay out; for a x-box 360 controller
 // [left stik RL(0) , left stik upp/down(1), LT(2) ,right stik RL(3) , right stik upp/down(4) , RT(5) , pad RL(6), pad upp/down(7) ]
@@ -34,10 +34,10 @@ ros::Publisher motor_power_pub;
 std_msgs::Float32MultiArray wheel_velocities;
 
 // setings
-//int POWER_BUFFER_SIZE;
-//int ENCODER_BUFFER_SIZE;
-//int LOOP_FREQ;
-//int TIME_OUT;
+int POWER_BUFFER_SIZE;
+int ENCODER_BUFFER_SIZE;
+int LOOP_FREQ;
+int TIME_OUT;
 // PID param
 float P;
 float I;
@@ -141,7 +141,7 @@ void setVelMsg(){
 		vel_msg.linear.x = 0;
 		vel_msg.linear.y = 0;
 	}
-	ROS_INFO("msg_ref_set pre control X: %f, Y: %f", vel_msg.linear.x, vel_msg.linear.y);
+//	ROS_INFO("msg_ref_set pre control X: %f, Y: %f", vel_msg.linear.x, vel_msg.linear.y);
 	return;
 }
 
@@ -157,7 +157,7 @@ void emergensyStop(){
 void pubEnginePower()
 {
 	motor_power_pub.publish(pwr_msg);
-	ROS_INFO("%f %f", pwr_msg.linear.x, pwr_msg.linear.y);
+//	ROS_INFO("%f %f", pwr_msg.linear.x, pwr_msg.linear.y);
 	return;
 }
 
@@ -168,7 +168,7 @@ void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
 	sterToSpeedBallanser();
   	setVelMsg();
 
-	ROS_INFO("%f %f", vel_msg.linear.x, vel_msg.linear.y);
+//	ROS_INFO("%f %f", vel_msg.linear.x, vel_msg.linear.y);
 	//PID
 
 	*Lle = *Le;
@@ -200,19 +200,23 @@ int main(int argc, char **argv)
 
   ros::init(argc, argv, NODE_NAME);
 
-//  ros::NodeHandle n("~");
+  ros::NodeHandle nh("engine_mgmt");
 	ros::NodeHandle n;
-  ros::Rate loop_rate(LOOP_FREQ);
   
 
-//	n.param<float>("P",P,70.0);
-//	n.param<float>("I",I,15.0);
-//	n.param<float>("D",D,0.0);
-//	n.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
-//	n.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
-//	n.param<int>("loop_freq",LOOP_FREQ,20);
-//	n.param<int>("time_out",TIME_OUT,500);
+	nh.param<float>("P",P,70.0);
+	nh.param<float>("I",I,15.0);
+	nh.param<float>("D",D,0.0);
+	nh.param<int>("POWER_BUFFER_SIZR",POWER_BUFFER_SIZE,200);
+	nh.param<int>("ENCODER_BUFFER_SIZE",ENCODER_BUFFER_SIZE,5);
+	nh.param<int>("LOOP_FREQ",LOOP_FREQ,20);
+	nh.param<int>("TIME_OUT",TIME_OUT,500);
   
+	//delay(500);
+	
+	ROS_INFO("Param settings: P = %f, I = %f, D = %f, power_buffer_size = %d, encoder_buffer_size = %d, loop_freq = %d, time_out = %d", P, I, D, POWER_BUFFER_SIZE, ENCODER_BUFFER_SIZE, LOOP_FREQ, TIME_OUT);
+	//ROS_INFO("int param: pbs: %f, ebs: %f, lf: %f, to: %f", POWER_BUFFER_SIZE, ENCODER_BUFFER_SIZE, LOOP_FREQ, TIME_OUT);
+  ros::Rate loop_rate(LOOP_FREQ);
 //set upp comunication chanels
   // TODO add the other chanels
   motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
@@ -225,9 +229,9 @@ int main(int argc, char **argv)
   *  		   current_L_vel, ie y
   */
 
-	P = 70;
-	I = 15;
-	D = 0;
+//	P = 70;
+//	I = 15;
+//	D = 0;
   float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, uL=0, uR=0;
 	float update_freq = LOOP_FREQ;  
   while(ros::ok()){
