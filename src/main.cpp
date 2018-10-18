@@ -205,7 +205,7 @@ int main(int argc, char **argv)
   
 
 	nh.param<float>("P",P,70.0);
-	nh.param<float>("I",I,15.0);
+	nh.param<float>("I",I,5.0);
 	nh.param<float>("D",D,0.0);
 	nh.param<int>("POWER_BUFFER_SIZR",POWER_BUFFER_SIZE,200);
 	nh.param<int>("ENCODER_BUFFER_SIZE",ENCODER_BUFFER_SIZE,5);
