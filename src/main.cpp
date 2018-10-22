@@ -30,7 +30,6 @@
 
 
 // message declarations
-geometry_msgs::Twist vel_msg;
 geometry_msgs::Twist pwr_msg;
 ros::Publisher motor_power_pub;
 
@@ -144,16 +143,16 @@ void setVelMsg(){
 	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
 	{
 		// changes if in reverse to not have inverted steering in reverse
-		vel_msg.linear.x = speed_reference - steering_reference;
-		vel_msg.linear.y = speed_reference + steering_reference;
+		pwr_msg.linear.x = speed_reference - steering_reference;
+		pwr_msg.linear.y = speed_reference + steering_reference;
 
 	}
 	else
 	{
-		vel_msg.linear.x = 0;
-		vel_msg.linear.y = 0;
+		pwr_msg.linear.x = 0;
+		pwr_msg.linear.y = 0;
 	}
-	ROS_INFO("msg_ref_set pre control X: %f, Y: %f", vel_msg.linear.x, vel_msg.linear.y);
+	ROS_INFO("msg_ref_set pre control X: %f, Y: %f", pwr_msg.linear.x, pwr_msg.linear.y);
 	return;
 }
 
@@ -186,8 +185,8 @@ void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
 
 	*Lle = *Le;
 	*Rle = *Re;
-	*Le =  vel_msg.linear.x/100 - current_L_vel;
-	*Re =  vel_msg.linear.y/100 - current_R_vel;
+	*Le =  pwr_msg.linear.x/100 - current_L_vel;
+	*Re =  pwr_msg.linear.y/100 - current_R_vel;
 	
 	//	if Lea+Le
 	*Lea = *Le + *Lea;
@@ -200,10 +199,10 @@ void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
 	if(*uR>100) *uR=100;
 	else if(*uR<-100) *uR=-100;
 
-	pwr_msg.linear.x = *uL + vel_msg.linear.x * 0.5;
-	pwr_msg.linear.y = *uR + vel_msg.linear.y * 0.5;
+	pwr_msg.linear.x = *uL + pwr_msg.linear.x * 0.5;
+	pwr_msg.linear.y = *uR + pwr_msg.linear.y * 0.5;
 
-	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",vel_msg.linear.x/100, *Le, *Lle, *Lea);
+	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",pwr_msg.linear.x, *Le, *Lle, *Lea);
 
 }
 
@@ -212,8 +211,6 @@ void controlerStandIn()
 {
 	sterToSpeedBalancer();
 	setVelMsg();
-	pwr_msg.linear.x = vel_msg.linear.x;
-	pwr_msg.linear.y = vel_msg.linear.y;
 }
 
 int main(int argc, char **argv)
@@ -268,4 +265,4 @@ int main(int argc, char **argv)
   return 0;
 }
 
-// %EndTag(FULLTEXT)%
+		// %EndTag(FULLTEXT)%
