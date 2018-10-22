@@ -15,13 +15,13 @@
 #define JOY_SUB_NODE "joy"
 #define STOP_SUB_NODE "lidar_stop"
 #define ADVERTISE_POWER "motor_power" //publishing channel
-#define POWER_BUFFER_SIZE 200
+//#define POWER_BUFFER_SIZE 200
 #define SUBSCRIBE_ENCODER "wheel_velocity"
-#define ENCODER_BUFFER_SIZE 5
-#define LOOP_FREQ 20
+//#define ENCODER_BUFFER_SIZE 5
+//#define LOOP_FREQ 20
 
-//#define PUSH_SPEED 250 // minimal ms between toggle button register
-#define TIME_OUT 500 // if no joy msg arrives in this time (ms) will it stop TODO test
+//#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
+//#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
 // joy msg->axes array layout; for a x-box 360 controller
 // [left stick RL(0) , left stick up/down(1), LT(2) ,right stick RL(3) , right stick up/down(4) , RT(5) , pad RL(6), pad up/down(7) ]
@@ -36,7 +36,18 @@ ros::Publisher motor_power_pub;
 
 std_msgs::Float32MultiArray wheel_velocities;
 
-// TODO maybe change to a struct. Global = bad!
+// setings
+int POWER_BUFFER_SIZE;
+int ENCODER_BUFFER_SIZE;
+int LOOP_FREQ;
+int TIME_OUT;
+// PID param
+float P;
+float I;
+float D;
+
+
+// TODO maybi change to a strukt. Global = bad!
 float speed_reference = 0;
 float steering_reference = 0;
 float current_L_vel = 0;
@@ -54,6 +65,7 @@ struct toggleButton {
 struct toggleButton handbreak = {.on = false, .previews = false}; // A 
 struct toggleButton startUp = {.on = true, .previews = false}; // start
 
+
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
@@ -65,9 +77,8 @@ void emergencyStop(float *Le, float *Re, float *Lle, float *Rle,
 void sterToSpeedBalancer();
 void controlerStandIn();
 void setVelMsg();
-void PID(float *Le, float *Re, float *Lle, float *Rle,
-		 float *Lea, float *Rea, float P, float D,
-		 float I, float *uL, float *uR, float updatefreq);
+void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
+				float *Rea, float *uL, float *uR, float updatefreq);
 
 // receives new data from joy
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
@@ -142,6 +153,7 @@ void setVelMsg(){
 		vel_msg.linear.x = 0;
 		vel_msg.linear.y = 0;
 	}
+	ROS_INFO("msg_ref_set pre control X: %f, Y: %f", vel_msg.linear.x, vel_msg.linear.y);
 	return;
 }
 
@@ -164,9 +176,8 @@ void pubEnginePower()
 }
 
 // PID
-void PID(float *Le, float *Re, float *Lle, float *Rle,
-		 float *Lea, float *Rea, float P, float D,
-		 float I, float *uL, float *uR, float updatefreq){
+void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
+		 float *Rea, float *uL, float *uR, float updatefreq){
 
 	sterToSpeedBalancer();
   	setVelMsg();
@@ -196,6 +207,7 @@ void PID(float *Le, float *Re, float *Lle, float *Rle,
 
 }
 
+// TODO temporary for testing
 void controlerStandIn()
 {
 	sterToSpeedBalancer();
@@ -209,7 +221,7 @@ int main(int argc, char **argv)
 
   ros::init(argc, argv, NODE_NAME);
 
-  ros::NodeHandle n;
+  ros::NodeHandle n("~");
   ros::Rate loop_rate(LOOP_FREQ);
   
   //set up communication channels
@@ -220,21 +232,31 @@ int main(int argc, char **argv)
   ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
   //ros::spin();
 
+	// for diagnostik print
+
+	n.param<float>("P",P,70.0);
+	n.param<float>("I",I,15.0);
+	n.param<float>("D",D,0.0);
+	n.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
+	n.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
+	n.param<int>("loop_freq",LOOP_FREQ,20);
+	n.param<int>("time_out",TIME_OUT,500);
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
   *  		   current_L_vel, ie y
   */
 
 
-  float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, P=70, D=0, I=15, uL=0, uR=0;
-  float updatefreq = LOOP_FREQ;
-
+  float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, uL=0, uR=0;
+  
   while(ros::ok()){
 
-	//sterToSpeedBalancer();
-  	//setVelMsg();
-//	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, P, D, I, &uL, &uR, updatefreq);
-		
-	controlerStandIn();	
+	// choos one stand in or controller (OBS 3 lins)
+	//controlerStandIn();	
+	
+	sterToSpeedBalancer();
+  	setVelMsg();	
+	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
+	
 
 	emergencyStop(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR);
 	pubEnginePower();
