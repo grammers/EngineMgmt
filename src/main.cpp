@@ -93,6 +93,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
 	joy_timer = clock();
 	if (speed_reference < 0) steering_reference = -steering_reference;
+	ROS_INFO("joy callback");
 }
 
 void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
@@ -152,7 +153,7 @@ void setVelMsg(){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
 	}
-	ROS_INFO("msg_ref_set pre control X: %f, Y: %f", pwr_msg.linear.x, pwr_msg.linear.y);
+	ROS_INFO("msg_ref_set pre control X: %f, Y: %f, strtUp: %d, coll: %d, overtide %d", pwr_msg.linear.x, pwr_msg.linear.y, startUp.on, coll_stop, emergency_override);
 	return;
 }
 
@@ -218,10 +219,22 @@ int main(int argc, char **argv)
 
   ros::init(argc, argv, NODE_NAME);
 
-  ros::NodeHandle n("~");
-  ros::Rate loop_rate(LOOP_FREQ);
+  ros::NodeHandle n;
+  ros::NodeHandle nh("~");
   
-  //set up communication channels
+
+	nh.param<float>("P",P,70.0);
+	nh.param<float>("I",I,15.0);
+	nh.param<float>("D",D,0.0);
+	nh.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
+	nh.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
+	nh.param<int>("loop_freq",LOOP_FREQ,20);
+	nh.param<int>("time_out",TIME_OUT,500);
+
+//	ROS_INFO("time_out %d", TIME_OUT);
+  
+  ros::Rate loop_rate(LOOP_FREQ);
+//set up communication channels
   // TODO add the other channels
   motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
   ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
@@ -230,14 +243,6 @@ int main(int argc, char **argv)
   //ros::spin();
 
 	// for diagnostik print
-
-	n.param<float>("P",P,70.0);
-	n.param<float>("I",I,15.0);
-	n.param<float>("D",D,0.0);
-	n.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
-	n.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
-	n.param<int>("loop_freq",LOOP_FREQ,20);
-	n.param<int>("time_out",TIME_OUT,500);
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
   *  		   current_L_vel, ie y
   */
@@ -247,11 +252,9 @@ int main(int argc, char **argv)
   
   while(ros::ok()){
 
-	// choos one stand in or controller (OBS 3 lins)
+	// choos one stand in or controller
 	//controlerStandIn();	
 	
-	sterToSpeedBalancer();
-  	setVelMsg();	
 	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
 	
 
