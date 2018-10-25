@@ -3,6 +3,7 @@
 #include "sensor_msgs/Joy.h"
 #include "geometry_msgs/Twist.h"
 #include <sys/timeb.h>
+//#include <time.h>
 #include <math.h>
 
 #include "std_msgs/Float32MultiArray.h"
@@ -75,6 +76,8 @@ void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
 int getMilliCount();
 int getMilliSpan(int nTimeStart);
 
+
+// Calculate time in ms
 int getMilliCount(){
 	timeb tb;
 	ftime(&tb);
@@ -82,6 +85,7 @@ int getMilliCount(){
 	return nCount;
 }
 
+// difremt in ms from nTimeStart wos taken
 int getMilliSpan(int nTimeStart){
 	int nSpan = getMilliCount() - nTimeStart;
 	if(nSpan < 0)
@@ -103,7 +107,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 
 	joy_timer = getMilliCount();
 	if (speed_reference < 0) steering_reference = -steering_reference;
-	ROS_INFO("joy callback");
+	//ROS_INFO("joy callback");
 }
 
 void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
@@ -163,8 +167,9 @@ void setVelMsg(){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
 	}
-	bool temp = getMilliSpan(joy_timer) < TIME_OUT;
-	ROS_INFO("msg_ref_set pre control X: %f, Y: %f, strtUp: %d, coll: %d, overtide %d, clock_out: %d", pwr_msg.linear.x, pwr_msg.linear.y, startUp.on, coll_stop, emergency_override, temp);
+	//bool temp = getMilliSpan(joy_timer) < TIME_OUT;
+	//ROS_INFO("span: %d", getMilliSpan(joy_timer));
+	//ROS_INFO("msg_ref_set pre control X: %f, Y: %f, strtUp: %d, coll: %d, overtide %d, clock_out: %d", pwr_msg.linear.x, pwr_msg.linear.y, startUp.on, coll_stop, emergency_override, temp);
 	return;
 }
 
@@ -264,9 +269,9 @@ int main(int argc, char **argv)
   while(ros::ok()){
 
 	// choos one stand in or controller
-	controlerStandIn();	
+	//controlerStandIn();	
 	
-//	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
+	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
 	
 
 	emergencyStop(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR);
