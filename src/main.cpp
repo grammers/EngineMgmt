@@ -2,7 +2,7 @@
 #include "ros/ros.h"
 #include "sensor_msgs/Joy.h"
 #include "geometry_msgs/Twist.h"
-#include <time.h>
+#include <sys/timeb.h>
 #include <math.h>
 
 #include "std_msgs/Float32MultiArray.h"
@@ -15,13 +15,7 @@
 #define JOY_SUB_NODE "joy"
 #define STOP_SUB_NODE "lidar_stop"
 #define ADVERTISE_POWER "motor_power" //publishing channel
-//#define POWER_BUFFER_SIZE 200
 #define SUBSCRIBE_ENCODER "wheel_velocity"
-//#define ENCODER_BUFFER_SIZE 5
-//#define LOOP_FREQ 20
-
-//#define PUSH_SPEED 250 // minimal ms betvin toggel buton register
-//#define TIME_OUT 500 // if no joy msg arives in thise time (ms) will it stop TODO test
 
 // joy msg->axes array layout; for a x-box 360 controller
 // [left stick RL(0) , left stick up/down(1), LT(2) ,right stick RL(3) , right stick up/down(4) , RT(5) , pad RL(6), pad up/down(7) ]
@@ -52,7 +46,7 @@ float steering_reference = 0;
 float current_L_vel = 0;
 float current_R_vel = 0;
 
-double joy_timer;
+int joy_timer;
 
 bool coll_stop;
 bool emergency_override;
@@ -78,6 +72,22 @@ void controlerStandIn();
 void setVelMsg();
 void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
 				float *Rea, float *uL, float *uR, float updatefreq);
+int getMilliCount();
+int getMilliSpan(int nTimeStart);
+
+int getMilliCount(){
+	timeb tb;
+	ftime(&tb);
+	int nCount = tb.millitm + (tb.time & 0xfffff) * 1000;
+	return nCount;
+}
+
+int getMilliSpan(int nTimeStart){
+	int nSpan = getMilliCount() - nTimeStart;
+	if(nSpan < 0)
+		nSpan += 0x100000 * 1000;
+	return nSpan;
+}
 
 // receives new data from joy
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
@@ -91,7 +101,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
  	toggleButton(msg->buttons[7], &startUp);
 	emergency_override = (msg->buttons[1] == 1); //B Button
 
-	joy_timer = clock();
+	joy_timer = getMilliCount();
 	if (speed_reference < 0) steering_reference = -steering_reference;
 	ROS_INFO("joy callback");
 }
@@ -141,7 +151,7 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 // set the new values to the message
 void setVelMsg(){
 	
-	if (((joy_timer - clock()) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
+	if ((getMilliSpan(joy_timer) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
 	{
 		// changes if in reverse to not have inverted steering in reverse
 		pwr_msg.linear.x = speed_reference - steering_reference;
@@ -153,7 +163,8 @@ void setVelMsg(){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
 	}
-	ROS_INFO("msg_ref_set pre control X: %f, Y: %f, strtUp: %d, coll: %d, overtide %d", pwr_msg.linear.x, pwr_msg.linear.y, startUp.on, coll_stop, emergency_override);
+	bool temp = getMilliSpan(joy_timer) < TIME_OUT;
+	ROS_INFO("msg_ref_set pre control X: %f, Y: %f, strtUp: %d, coll: %d, overtide %d, clock_out: %d", pwr_msg.linear.x, pwr_msg.linear.y, startUp.on, coll_stop, emergency_override, temp);
 	return;
 }
 
@@ -231,8 +242,8 @@ int main(int argc, char **argv)
 	nh.param<int>("loop_freq",LOOP_FREQ,20);
 	nh.param<int>("time_out",TIME_OUT,500);
 
-//	ROS_INFO("time_out %d", TIME_OUT);
-  
+	//ROS_INFO("time_out %d", TIME_OUT);
+	
   ros::Rate loop_rate(LOOP_FREQ);
 //set up communication channels
   // TODO add the other channels
@@ -253,9 +264,9 @@ int main(int argc, char **argv)
   while(ros::ok()){
 
 	// choos one stand in or controller
-	//controlerStandIn();	
+	controlerStandIn();	
 	
-	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
+//	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
 	
 
 	emergencyStop(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR);
