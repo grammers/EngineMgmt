@@ -3,7 +3,6 @@
 #include "sensor_msgs/Joy.h"
 #include "geometry_msgs/Twist.h"
 #include <sys/timeb.h>
-//#include <time.h>
 #include <math.h>
 
 #include "std_msgs/Float32MultiArray.h"
@@ -17,6 +16,7 @@
 #define STOP_SUB_NODE "lidar_stop"
 #define ADVERTISE_POWER "motor_power" //publishing channel
 #define SUBSCRIBE_ENCODER "wheel_velocity"
+#define VW_SUB "vw_estimate"
 
 // joy msg->axes array layout; for a x-box 360 controller
 // [left stick RL(0) , left stick up/down(1), LT(2) ,right stick RL(3) , right stick up/down(4) , RT(5) , pad RL(6), pad up/down(7) ]
@@ -26,6 +26,7 @@
 
 // message declarations
 geometry_msgs::Twist pwr_msg;
+geometry_msgs::Twist last_msg;
 ros::Publisher motor_power_pub;
 
 std_msgs::Float32MultiArray wheel_velocities;
@@ -35,10 +36,11 @@ int POWER_BUFFER_SIZE;
 int ENCODER_BUFFER_SIZE;
 int LOOP_FREQ;
 int TIME_OUT;
-// PID param
-float P;
-float I;
-float D;
+// feedBackLineraiion
+float k11;
+float k22;
+float kr11;
+float kr22;
 
 
 // TODO maybi change to a strukt. Global = bad!
@@ -46,6 +48,11 @@ float speed_reference = 0;
 float steering_reference = 0;
 float current_L_vel = 0;
 float current_R_vel = 0;
+
+float ar;
+float al;
+float v;
+float w;
 
 int joy_timer;
 
@@ -63,19 +70,18 @@ struct toggleButton startUp = {.on = true, .previews = false}; // start
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
+void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 float inputSens(float ref);
 void toggleButton(int val, struct toggleButton *b);
-void emergencyStop(float *Le, float *Re, float *Lle, float *Rle, 
-					float *Lea, float *Rea, float *uL, float *uR);
+void emergencyStop();
 // temporary functions might change or be replaced when real controller implements
-void sterToSpeedBalancer();
-void controlerStandIn();
 void setVelMsg();
-void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
-				float *Rea, float *uL, float *uR, float updatefreq);
+//time functions
 int getMilliCount();
 int getMilliSpan(int nTimeStart);
-
+// controll loop
+void feedBackLinerisation();
+void args();
 
 // Calculate time in ms
 int getMilliCount(){
@@ -97,8 +103,8 @@ int getMilliSpan(int nTimeStart){
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
   // read input form joy
-	speed_reference = 50 * (-msg->axes[5] + msg->axes[2]);
-	steering_reference = inputSens(msg->axes[0]); 
+	speed_reference = (-msg->axes[5] + msg->axes[2]) / 2;
+	steering_reference = msg->axes[0]; //inputSens(msg->axes[0]) * 3; 
 
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
@@ -117,7 +123,7 @@ void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 
 // adjust input sensitivity
 float inputSens(float ref){
-	return pow(ref, 3) * 100;
+	return pow(ref, 3);
 }
 
 // loadig to handle buttons that should toggle
@@ -127,16 +133,6 @@ void toggleButton(int val, struct toggleButton *b){
 		b->previews = (val == 1);
 }
 
-// ensure that the speed don't exist full power
-void sterToSpeedBalancer(){
-	while (abs(speed_reference) + abs(steering_reference) > 100){
-		if (speed_reference > 0) speed_reference--;
-		else speed_reference++;
-		if (steering_reference > 0) steering_reference--;
-		else steering_reference++;
-	}
-	return;
-}
 
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 {
@@ -152,20 +148,19 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 
 }
 
+void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
+{
+	v = array->data[0];
+	w = array->data[1];
+}
+
 // set the new values to the message
 void setVelMsg(){
 	
-	if ((getMilliSpan(joy_timer) < TIME_OUT) && !startUp.on && (!coll_stop || emergency_override))
+	if ((getMilliSpan(joy_timer) > TIME_OUT) || startUp.on || (coll_stop && !emergency_override))
 	{
-		// changes if in reverse to not have inverted steering in reverse
-		pwr_msg.linear.x = speed_reference - steering_reference;
-		pwr_msg.linear.y = speed_reference + steering_reference;
-
-	}
-	else
-	{
-		pwr_msg.linear.x = 0;
-		pwr_msg.linear.y = 0;
+		speed_reference = 0;
+		steering_reference = 0;
 	}
 	//bool temp = getMilliSpan(joy_timer) < TIME_OUT;
 	//ROS_INFO("span: %d", getMilliSpan(joy_timer));
@@ -174,14 +169,9 @@ void setVelMsg(){
 }
 
 // Emergency stop force to stop
-void emergencyStop(float *Le, float *Re, float *Lle, float *Rle, 
-					float *Lea, float *Rea, float *uL, float *uR){
-	if (handbreak.on){
+void emergencyStop(){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
-		*Le = 0; *Re = 0; *Lle = 0; *Rle = 0; 
-		*Lea = 0; *Rea = 0; *uL = 0; *uR = 0;
-	}
 }
 
 // publish when new steering directions are set
@@ -191,43 +181,17 @@ void pubEnginePower()
 	return;
 }
 
-// PID
-void PID(float *Le, float *Re, float *Lle, float *Rle, float *Lea,
-		 float *Rea, float *uL, float *uR, float updatefreq){
-
-	sterToSpeedBalancer();
-  	setVelMsg();
-	
-	//PID
-
-	*Lle = *Le;
-	*Rle = *Re;
-	*Le =  pwr_msg.linear.x/100 - current_L_vel;
-	*Re =  pwr_msg.linear.y/100 - current_R_vel;
-	
-	//	if Lea+Le
-	*Lea = *Le + *Lea;
-	*Rea = *Re + *Rea;
-	*uL = P * *Le + D * updatefreq * (*Le- *Lle) + I* *Lea;
-	*uR = P * *Re + D * updatefreq * (*Re- *Rle) + I* *Rea; 
-
-	if(*uL>100) *uL=100;
-	else if(*uL<-100) *uL=-100;
-	if(*uR>100) *uR=100;
-	else if(*uR<-100) *uR=-100;
-
-	pwr_msg.linear.x = *uL + pwr_msg.linear.x * 0.5;
-	pwr_msg.linear.y = *uR + pwr_msg.linear.y * 0.5;
-
-	ROS_INFO("rL: %f, Le: %f, Lle: %f, Lea: %f",pwr_msg.linear.x, *Le, *Lle, *Lea);
-
+void args(){
+	//pwr_msg.linear.x = 9.61 * al + 11.45 * current_L_vel + 0.85 * last_msg.linear.x;
+	pwr_msg.linear.x = 9.61 * al + 11.45 * current_L_vel + 0.85 * last_msg.linear.x;
+	pwr_msg.linear.y = 10.95 * ar + 13.52 * current_R_vel + 0.83 * last_msg.linear.y; 
+	//pwr_msg.linear.y = 10.95 * ar + 10.00 * current_R_vel + 0.83 * last_msg.linear.y; 
 }
 
-// TODO temporary for testing
-void controlerStandIn()
-{
-	sterToSpeedBalancer();
-	setVelMsg();
+
+void feedBackLinerisation(){
+	ar = 0.5649 * kr11 * speed_reference - 0.5649 * k11 * v - 0.1234 * k22 * w + 0.1234 * kr22 * steering_reference + 0.4195 * v * w - 0.1146 * pow(w, 2); 
+	al = 0.5649 * kr11 * speed_reference - 0.5649 * k11 * v + 0.1234 * k22 * w - 0.1234 * kr22 * steering_reference - 0.4195 * v * w - 0.1146 * pow(w, 2); 
 }
 
 int main(int argc, char **argv)
@@ -239,42 +203,38 @@ int main(int argc, char **argv)
   ros::NodeHandle nh("~");
   
 
-	nh.param<float>("P",P,70.0);
-	nh.param<float>("I",I,15.0);
-	nh.param<float>("D",D,0.0);
 	nh.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
 	nh.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
 	nh.param<int>("loop_freq",LOOP_FREQ,20);
 	nh.param<int>("time_out",TIME_OUT,500);
-
-	//ROS_INFO("time_out %d", TIME_OUT);
+	nh.param<float>("k11",k11,2.5);
+	nh.param<float>("k22",k22,6);
+	nh.param<float>("kr11",kr11,2.5);
+	nh.param<float>("kr22",kr22,10);
+	
+//ROS_INFO("time_out %d", TIME_OUT);
 	
   ros::Rate loop_rate(LOOP_FREQ);
 //set up communication channels
-  // TODO add the other channels
   motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
   ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
   ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
   ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
-  //ros::spin();
+	ros::Subscriber vw_encder = n.subscribe<std_msgs::Float32MultiArray>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
 
 	// for diagnostik print
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
   *  		   current_L_vel, ie y
   */
 
-
-  float Le=0, Re=0, Lle=0, Rle=0, Lea=0, Rea=0, uL=0, uR=0;
   
   while(ros::ok()){
 
-	// choos one stand in or controller
-	//controlerStandIn();	
-	
-	PID(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR, LOOP_FREQ);
-	
-
-	emergencyStop(&Le, &Re, &Lle, &Rle, &Lea, &Rea, &uL, &uR);
+	last_msg = pwr_msg;
+	//setVelMsg();
+	feedBackLinerisation();
+	args();
+	//emergencyStop(); // TODO convert to feedbaeck linar
 	pubEnginePower();
   	ros::spinOnce();
   	loop_rate.sleep();
