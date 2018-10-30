@@ -157,6 +157,7 @@ void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 // set the new values to the message
 void setVelMsg(){
 	
+	last_msg = pwr_msg;
 	if ((getMilliSpan(joy_timer) > TIME_OUT) || startUp.on || (coll_stop && !emergency_override))
 	{
 		speed_reference = 0;
@@ -170,8 +171,10 @@ void setVelMsg(){
 
 // Emergency stop force to stop
 void emergencyStop(){
+	if	(handbreak.on){
 		pwr_msg.linear.x = 0;
 		pwr_msg.linear.y = 0;
+	}
 }
 
 // publish when new steering directions are set
@@ -197,10 +200,10 @@ void feedBackLinerisation(){
 int main(int argc, char **argv)
 {
 
-  ros::init(argc, argv, NODE_NAME);
+	ros::init(argc, argv, NODE_NAME);
 
-  ros::NodeHandle n;
-  ros::NodeHandle nh("~");
+	ros::NodeHandle n;
+	ros::NodeHandle nh("~");
   
 
 	nh.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
@@ -212,14 +215,14 @@ int main(int argc, char **argv)
 	nh.param<float>("kr11",kr11,2.5);
 	nh.param<float>("kr22",kr22,10);
 	
-//ROS_INFO("time_out %d", TIME_OUT);
+	//ROS_INFO("time_out %d", TIME_OUT);
 	
-  ros::Rate loop_rate(LOOP_FREQ);
-//set up communication channels
-  motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
-  ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
-  ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
-  ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
+	ros::Rate loop_rate(LOOP_FREQ);
+	//set up communication channels
+	motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
+	ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
+	ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
+	ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
 	ros::Subscriber vw_encder = n.subscribe<std_msgs::Float32MultiArray>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
 
 	// for diagnostik print
@@ -228,20 +231,19 @@ int main(int argc, char **argv)
   */
 
   
-  while(ros::ok()){
+	while(ros::ok()){
 
-	last_msg = pwr_msg;
-	//setVelMsg();
-	feedBackLinerisation();
-	args();
-	//emergencyStop(); // TODO convert to feedbaeck linar
-	pubEnginePower();
-  	ros::spinOnce();
-  	loop_rate.sleep();
+		setVelMsg();
+		feedBackLinerisation();
+		args();
+		emergencyStop(); 
+		pubEnginePower();
+  		ros::spinOnce();
+  		loop_rate.sleep();
 
-  }
+	}
 
-  return 0;
+	return 0;
 }
 
 		// %EndTag(FULLTEXT)%
