@@ -213,7 +213,7 @@ int main(int argc, char **argv)
 	nh.param<float>("k11",k11,2.5);
 	nh.param<float>("k22",k22,6);
 	nh.param<float>("kr11",kr11,2.5);
-	nh.param<float>("kr22",kr22,10);
+	nh.param<float>("kr22",kr22,12);
 	
 	//ROS_INFO("time_out %d", TIME_OUT);
 	
