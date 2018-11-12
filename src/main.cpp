@@ -81,7 +81,7 @@ int getMilliCount();
 int getMilliSpan(int nTimeStart);
 // controll loop
 void feedBackLinerisation();
-void args();
+void arx();
 
 // Calculate time in ms
 int getMilliCount(){
@@ -191,7 +191,7 @@ void pubEnginePower()
 	return;
 }
 
-void args(){
+void arx(){
 	//pwr_msg.linear.x = 9.61 * al + 11.45 * current_L_vel + 0.85 * last_msg.linear.x;
 	pwr_msg.linear.x = 9.61 * al + 11.45 * current_L_vel + 0.85 * last_msg.linear.x;
 	pwr_msg.linear.y = 10.95 * ar + 13.52 * current_R_vel + 0.83 * last_msg.linear.y; 
@@ -237,17 +237,13 @@ int main(int argc, char **argv)
   *  		   current_L_vel, ie y
   */
 
-  	int loop_times = 0;
-	ROS_INFO("Data in format: t, w_ref, v_ref, L_vel, R_vel, w_curent, v_current, Pl, Pr, al, ar");
 	while(ros::ok()){
-		loop_times++;
+  		ros::spinOnce();
 		setVelMsg();
 		feedBackLinerisation();
-		args();
+		arx();
 		emergencyStop(); 
 		pubEnginePower();
-		ROS_INFO("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", (float)loop_times/LOOP_FREQ, steering_reference, speed_reference, current_L_vel, current_R_vel, w, v, pwr_msg.linear.x, pwr_msg.linear.x, al, ar);
-  		ros::spinOnce();
   		loop_rate.sleep();
 
 	}
