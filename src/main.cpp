@@ -104,7 +104,7 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
   // read input form joy
 	speed_reference = (-msg->axes[5] + msg->axes[2]) / 2;
-	steering_reference = msg->axes[0]; //inputSens(msg->axes[0]) * 3; 
+	steering_reference = inputSens(msg->axes[0]); 
 
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
@@ -123,7 +123,10 @@ void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 
 // adjust input sensitivity
 float inputSens(float ref){
-	return pow(ref, 3);
+	if (ref >= 0)
+		return pow(ref, 2);
+	else
+		return -pow(ref,2);
 }
 
 // loadig to handle buttons that should toggle
@@ -180,6 +183,10 @@ void emergencyStop(){
 // publish when new steering directions are set
 void pubEnginePower()
 {
+	if (pwr_msg.linear.x > 100)
+		pwr_msg.linear.x = 100;
+	if (pwr_msg.linear.y > 100)
+		pwr_msg.linear.y = 100;
 	motor_power_pub.publish(pwr_msg);
 	return;
 }
@@ -193,8 +200,8 @@ void args(){
 
 
 void feedBackLinerisation(){
-	ar = 0.5649 * kr11 * speed_reference - 0.5649 * k11 * v - 0.1234 * k22 * w + 0.1234 * kr22 * steering_reference + 0.4195 * v * w - 0.1146 * pow(w, 2); 
-	al = 0.5649 * kr11 * speed_reference - 0.5649 * k11 * v + 0.1234 * k22 * w - 0.1234 * kr22 * steering_reference - 0.4195 * v * w - 0.1146 * pow(w, 2); 
+	ar = 1.2030 * kr11 * speed_reference - 1.2030 * k11 * v - 0.3817 * k22 * w + 0.3817 * kr22 * steering_reference + 0.4386 * v * w - 0.1250 * pow(w, 2); 
+	al = 1.2030 * kr11 * speed_reference - 1.2030 * k11 * v + 0.3817 * k22 * w - 0.3817 * kr22 * steering_reference - 0.4386 * v * w - 0.1250 * pow(w, 2); 
 }
 
 int main(int argc, char **argv)
@@ -210,10 +217,10 @@ int main(int argc, char **argv)
 	nh.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
 	nh.param<int>("loop_freq",LOOP_FREQ,20);
 	nh.param<int>("time_out",TIME_OUT,500);
-	nh.param<float>("k11",k11,2.5);
-	nh.param<float>("k22",k22,6);
-	nh.param<float>("kr11",kr11,2.5);
-	nh.param<float>("kr22",kr22,12);
+	nh.param<float>("k11",k11,1.5);
+	nh.param<float>("k22",k22,2.5);
+	nh.param<float>("kr11",kr11,1.5);
+	nh.param<float>("kr22",kr22,5);
 	
 	//ROS_INFO("time_out %d", TIME_OUT);
 	
