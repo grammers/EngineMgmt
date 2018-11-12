@@ -103,8 +103,8 @@ int getMilliSpan(int nTimeStart){
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
   // read input form joy
-	speed_reference = (-msg->axes[5] + msg->axes[2]) / 2;
-	steering_reference = inputSens(msg->axes[0]); 
+	speed_reference = -msg->axes[5];
+	steering_reference = msg->axes[0]; 
 
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
@@ -166,6 +166,8 @@ void setVelMsg(){
 		speed_reference = 0;
 		steering_reference = 0;
 	}
+	pwr_msg.linear.x = speed_reference;
+	pwr_msg.linear.y = speed_reference;
 	//bool temp = getMilliSpan(joy_timer) < TIME_OUT;
 	//ROS_INFO("span: %d", getMilliSpan(joy_timer));
 	//ROS_INFO("msg_ref_set pre control X: %f, Y: %f, strtUp: %d, coll: %d, overtide %d, clock_out: %d", pwr_msg.linear.x, pwr_msg.linear.y, startUp.on, coll_stop, emergency_override, temp);
@@ -241,13 +243,16 @@ int main(int argc, char **argv)
 	ROS_INFO("Data in format: t, w_ref, v_ref, L_vel, R_vel, w_curent, v_current, Pl, Pr, al, ar");
 	while(ros::ok()){
 		loop_times++;
-		setVelMsg();
-		feedBackLinerisation();
-		args();
-		emergencyStop(); 
-		pubEnginePower();
-		ROS_INFO("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", (float)loop_times/LOOP_FREQ, steering_reference, speed_reference, current_L_vel, current_R_vel, w, v, pwr_msg.linear.x, pwr_msg.linear.x, al, ar);
   		ros::spinOnce();
+		//setVelMsg();
+		//feedBackLinerisation();
+		//args();
+		//emergencyStop(); 
+		ROS_INFO("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f", (float)loop_times/LOOP_FREQ, steering_reference, speed_reference, current_L_vel, current_R_vel, w, v, pwr_msg.linear.x, pwr_msg.linear.x, al, ar);
+		
+		pwr_msg.linear.x = speed_reference * 100;
+		pwr_msg.linear.y = speed_reference * 100;
+		pubEnginePower();
   		loop_rate.sleep();
 
 	}
