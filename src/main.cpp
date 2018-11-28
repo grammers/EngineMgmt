@@ -102,8 +102,9 @@ int getMilliSpan(int nTimeStart){
 
 void refCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-	float speed_reference = msg->linear.x;
-	float steering_reference = msg->angular.z;
+	speed_reference = msg->linear.x;
+	steering_reference = msg->angular.z;
+	//ROS_INFO("refcallback %f %f", speed_reference, steering_reference);
 }
 
 
@@ -117,7 +118,6 @@ void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 	emergency_override = (msg->buttons[1] == 1); //B Button
 
 	joy_timer = getMilliCount();
-	if (speed_reference < 0) steering_reference = -steering_reference;
 	//ROS_INFO("joy callback");
 }
 
@@ -186,6 +186,7 @@ void pubEnginePower()
 	if (pwr_msg.linear.y > 100)
 		pwr_msg.linear.y = 100;
 	motor_power_pub.publish(pwr_msg);
+	//ROS_INFO("pub %f %f", pwr_msg.linear.x, pwr_msg.linear.y);
 	return;
 }
 
@@ -194,12 +195,14 @@ void arx(){
 	pwr_msg.linear.x = 9.61 * al + 11.45 * current_L_vel + 0.85 * last_msg.linear.x;
 	pwr_msg.linear.y = 10.95 * ar + 13.52 * current_R_vel + 0.83 * last_msg.linear.y; 
 	//pwr_msg.linear.y = 10.95 * ar + 10.00 * current_R_vel + 0.83 * last_msg.linear.y; 
+	//ROS_INFO("arx %f %f", speed_reference, steering_reference);
 }
 
 
 void feedBackLinerisation(){
 	ar = 1.2030 * kr11 * speed_reference - 1.2030 * k11 * v - 0.3817 * k22 * w + 0.3817 * kr22 * steering_reference + 0.4386 * v * w - 0.1250 * pow(w, 2); 
 	al = 1.2030 * kr11 * speed_reference - 1.2030 * k11 * v + 0.3817 * k22 * w - 0.3817 * kr22 * steering_reference - 0.4386 * v * w - 0.1250 * pow(w, 2); 
+	//ROS_INFO("fl %f %f", speed_reference, steering_reference);
 }
 
 int main(int argc, char **argv)
@@ -229,7 +232,7 @@ int main(int argc, char **argv)
 	ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
 	ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
 	ros::Subscriber vw_encder = n.subscribe<std_msgs::Float32MultiArray>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
-	ros::Subscriber refens = n.subscribe<geometry_msgs::Twist>("referns", POWER_BUFFER_SIZE, refCallback);
+	ros::Subscriber refens = n.subscribe<geometry_msgs::Twist>("referens", POWER_BUFFER_SIZE, refCallback);
 
 	// for diagnostik print
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
