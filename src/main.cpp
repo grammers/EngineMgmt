@@ -70,6 +70,7 @@ struct toggleButton startUp = {.on = true, .previews = false}; // start
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
+void refCallback(const geometry_msgs::Twist::ConstPtr& msg);
 void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 float inputSens(float ref);
 void toggleButton(int val, struct toggleButton *b);
@@ -99,12 +100,16 @@ int getMilliSpan(int nTimeStart){
 	return nSpan;
 }
 
+void refCallback(const geometry_msgs::Twist::ConstPtr& msg)
+{
+	float speed_reference = msg->linear.x;
+	float steering_reference = msg->angular.z;
+}
+
+
 // receives new data from joy
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
-  // read input form joy
-	speed_reference = (-msg->axes[5] + msg->axes[2]) / 2;
-	steering_reference = inputSens(msg->axes[0]); 
 
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
@@ -121,13 +126,6 @@ void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 	coll_stop = lidar_stop->data;
 }
 
-// adjust input sensitivity
-float inputSens(float ref){
-	if (ref >= 0)
-		return pow(ref, 2);
-	else
-		return -pow(ref,2);
-}
 
 // loadig to handle buttons that should toggle
 void toggleButton(int val, struct toggleButton *b){
@@ -231,6 +229,7 @@ int main(int argc, char **argv)
 	ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
 	ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
 	ros::Subscriber vw_encder = n.subscribe<std_msgs::Float32MultiArray>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
+	ros::Subscriber refens = n.subscribe<geometry_msgs::Twist>("referns", POWER_BUFFER_SIZE, refCallback);
 
 	// for diagnostik print
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
