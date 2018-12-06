@@ -16,7 +16,8 @@
 #define STOP_SUB_NODE "lidar_stop"
 #define ADVERTISE_POWER "motor_power" //publishing channel
 #define SUBSCRIBE_ENCODER "wheel_velocity"
-#define VW_SUB "vw_estimate"
+#define VW_SUB "vw_hat"
+#define TORQUE_SUB "torque"
 
 // joy msg->axes array layout; for a x-box 360 controller
 // [left stick RL(0) , left stick up/down(1), LT(2) ,right stick RL(3) , right stick up/down(4) , RT(5) , pad RL(6), pad up/down(7) ]
@@ -54,6 +55,9 @@ float al;
 float v;
 float w;
 
+float tr = 0;
+float tl = 0;
+
 int joy_timer;
 
 bool coll_stop;
@@ -71,7 +75,8 @@ void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
 void refCallback(const geometry_msgs::Twist::ConstPtr& msg);
-void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
+void vwCallback(const geometry_msgs::Twist::ConstPtr& msg);
+void torqueCallback(const geometry_msgs::Twist::ConstPtr& msg);
 float inputSens(float ref);
 void toggleButton(int val, struct toggleButton *b);
 void emergencyStop();
@@ -149,10 +154,16 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 
 }
 
-void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
+void vwCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-	v = array->data[0];
-	w = array->data[1];
+	v = msg->linear.x;
+	w = msg->angular.z;
+}
+
+void torqueCallback(const geometry_msgs::Twist::ConstPtr& msg)
+{
+	tl = msg->linear.x;
+	tr = msg->linear.y;
 }
 
 // set the new values to the message
@@ -231,8 +242,9 @@ int main(int argc, char **argv)
 	ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
 	ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
 	ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
-	ros::Subscriber vw_encder = n.subscribe<std_msgs::Float32MultiArray>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
+	ros::Subscriber vw_encder = n.subscribe<geometry_msgs::Twist>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
 	ros::Subscriber refens = n.subscribe<geometry_msgs::Twist>("referens", POWER_BUFFER_SIZE, refCallback);
+	ros::Subscriber torque = n.subscribe<geometry_msgs::Twist>(TORQUE_SUB, ENCODER_BUFFER_SIZE, torqueCallback);
 
 	// for diagnostik print
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
