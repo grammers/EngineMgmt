@@ -17,6 +17,7 @@
 #define ADVERTISE_POWER "motor_power" //publishing channel
 #define SUBSCRIBE_ENCODER "wheel_velocity"
 #define VW_SUB "vw_estimate"
+#define REF_SUB "referens"
 
 // joy msg->axes array layout; for a x-box 360 controller
 // [left stick RL(0) , left stick up/down(1), LT(2) ,right stick RL(3) , right stick up/down(4) , RT(5) , pad RL(6), pad up/down(7) ]
@@ -70,8 +71,9 @@ struct toggleButton startUp = {.on = true, .previews = false}; // start
 void pubEnginePower();
 void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg);
-void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array);
-float inputSens(float ref);
+void vwCallback(const geometry_msgs::Twist::ConstPtr& msg);
+void referensCallback(const geometry_msgs::Twist::ConstPtr& msg);
+//float inputSens(float ref);
 void toggleButton(int val, struct toggleButton *b);
 void emergencyStop();
 // temporary functions might change or be replaced when real controller implements
@@ -103,24 +105,30 @@ int getMilliSpan(int nTimeStart){
 void joyCallback(const sensor_msgs::Joy::ConstPtr& msg)
 {
   // read input form joy
-	speed_reference = (-msg->axes[5] + msg->axes[2]) / 2;
-	steering_reference = inputSens(msg->axes[0]); 
 
   	//test if button have been pressed
 	toggleButton(msg->buttons[0], &handbreak);
  	toggleButton(msg->buttons[7], &startUp);
 	emergency_override = (msg->buttons[1] == 1); //B Button
 
+	//ROS_INFO("joy callback");
+}
+
+// input referens referens 
+void referensCallback(const geometry_msgs::Twist::ConstPtr& msg)
+{
+	speed_reference = msg->linear.x;
+	steering_reference = msg->angular.z; 
+	
 	joy_timer = getMilliCount();
 	if (speed_reference < 0) steering_reference = -steering_reference;
-	//ROS_INFO("joy callback");
 }
 
 void stopCallback(const std_msgs::Bool::ConstPtr& lidar_stop)
 {
 	coll_stop = lidar_stop->data;
 }
-
+/*
 // adjust input sensitivity
 float inputSens(float ref){
 	if (ref >= 0)
@@ -128,7 +136,7 @@ float inputSens(float ref){
 	else
 		return -pow(ref,2);
 }
-
+*/
 // loadig to handle buttons that should toggle
 void toggleButton(int val, struct toggleButton *b){
 		if (val == 1 && !b->previews)
@@ -151,10 +159,10 @@ void encoderCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
 
 }
 
-void vwCallback(const std_msgs::Float32MultiArray::ConstPtr& array)
+void vwCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-	v = array->data[0];
-	w = array->data[1];
+	v = msg->linear.x;
+	w = msg->angular.z;
 }
 
 // set the new values to the message
@@ -230,8 +238,8 @@ int main(int argc, char **argv)
 	ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
 	ros::Subscriber wheel_vel_sub = n.subscribe<std_msgs::Float32MultiArray>(SUBSCRIBE_ENCODER, ENCODER_BUFFER_SIZE, encoderCallback);
 	ros::Subscriber stop_sub = n.subscribe<std_msgs::Bool>(STOP_SUB_NODE, 1, stopCallback);
-	ros::Subscriber vw_encder = n.subscribe<std_msgs::Float32MultiArray>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
-
+	ros::Subscriber vw_encder = n.subscribe<geometry_msgs::Twist>(VW_SUB, ENCODER_BUFFER_SIZE, vwCallback);
+	ros::Subscriber referens = n.subscribe<geometry_msgs::Twist>(REF_SUB, POWER_BUFFER_SIZE, referensCallback);
 	// for diagnostik print
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
   *  		   current_L_vel, ie y
