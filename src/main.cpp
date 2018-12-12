@@ -1,4 +1,3 @@
-
 #include "ros/ros.h"
 #include "sensor_msgs/Joy.h"
 #include "geometry_msgs/Twist.h"
@@ -16,7 +15,7 @@
 #define STOP_SUB_NODE "lidar_stop"
 #define ADVERTISE_POWER "motor_power" //publishing channel
 #define SUBSCRIBE_ENCODER "wheel_velocity"
-#define VW_SUB "vw_hat"
+#define VW_SUB "vw_estimate"
 #define TORQUE_SUB "torque"
 
 // joy msg->axes array layout; for a x-box 360 controller
@@ -38,10 +37,50 @@ int ENCODER_BUFFER_SIZE;
 int LOOP_FREQ;
 int TIME_OUT;
 // feedBackLineraiion
-float k11;
-float k22;
-float kr11;
-float kr22;
+float ksi = 1;
+float Trsv = 4;
+float wnv = 3.8/(ksi*Trsv);
+
+float Trsw = 4;
+float wnw = 3.8/(ksi*Trsw);
+
+float K11 = pow(wnv,2);
+float K12 = 2 * ksi *wnv;
+float K13 = 0;
+float K14 = 0;
+float K21 = 0;
+float K22 = 0;
+float K23 = pow(wnw,2);
+float K24 = 2 * ksi * wnw;
+
+float Kr11 = pow(wnv,2) * 10;
+float Kr12 = 0;
+float Kr21 = 0;
+float Kr22 = pow(wnw,2);
+
+float mc = 100.0;
+float mw = 7.5;
+float m = mc + 2* mw;
+float R = 0.165;
+float L = 0.285;
+float d = 0.25;
+float Ic = 0.5 * mc * pow(d, 2);
+float Im = mw * pow(R,2);
+float Iw = mw * pow(L,2);
+float I = (Ic + mc * pow(d,2) + 2 * mw * pow(L,2) + 2 * Im);
+
+float K1 = -32.3;
+float K2 = -200.8;
+float B1 = 195.2;
+float K3 = -32.3;
+float K4 = -200.8;
+float B2 = 195.2;
+//float K1 = -34.3;
+//float K2 = -246.8;
+//float B1 = 180.2;
+//float K3 = -30.3;
+//float K4 = -163.1;
+//float B2 = 213.5;
 
 
 // TODO maybi change to a strukt. Global = bad!
@@ -55,8 +94,8 @@ float al;
 float v;
 float w;
 
-float tr = 0;
-float tl = 0;
+float tauR = 0;
+float tauL = 0;
 
 int joy_timer;
 
@@ -88,6 +127,7 @@ int getMilliSpan(int nTimeStart);
 // controll loop
 void feedBackLinerisation();
 void arx();
+void loopCallback(const ros::TimerEvent&);
 
 // Calculate time in ms
 int getMilliCount(){
@@ -162,8 +202,8 @@ void vwCallback(const geometry_msgs::Twist::ConstPtr& msg)
 
 void torqueCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-	tl = msg->linear.x;
-	tr = msg->linear.y;
+	tauL = msg->linear.x;
+	tauR = msg->linear.y;
 }
 
 // set the new values to the message
@@ -194,8 +234,12 @@ void pubEnginePower()
 {
 	if (pwr_msg.linear.x > 100)
 		pwr_msg.linear.x = 100;
+	else if (pwr_msg.linear.x < -100)
+		pwr_msg.linear.x = -100;
 	if (pwr_msg.linear.y > 100)
 		pwr_msg.linear.y = 100;
+	else if (pwr_msg.linear.y < -100)
+		pwr_msg.linear.y = -100;
 	motor_power_pub.publish(pwr_msg);
 	//ROS_INFO("pub %f %f", pwr_msg.linear.x, pwr_msg.linear.y);
 	return;
@@ -211,9 +255,60 @@ void arx(){
 
 
 void feedBackLinerisation(){
-	ar = 1.2030 * kr11 * speed_reference - 1.2030 * k11 * v - 0.3817 * k22 * w + 0.3817 * kr22 * steering_reference + 0.4386 * v * w - 0.1250 * pow(w, 2); 
-	al = 1.2030 * kr11 * speed_reference - 1.2030 * k11 * v + 0.3817 * k22 * w - 0.3817 * kr22 * steering_reference - 0.4386 * v * w - 0.1250 * pow(w, 2); 
-	//ROS_INFO("fl %f %f", speed_reference, steering_reference);
+/*
+	pwr_msg.linear.y = - ((m * pow(R,2) + 2 * Iw) * (K11 * v - Kr11 * speed_reference + K13 * w - Kr12 
+		* steering_reference + (R * (K1 * tauR + K2 * v + K2 * L * w))/(m * pow(R,2) + 2 * Iw) 
+		+ (R * (K3 * tauL + K4 * v - K4 * L * w))/(m * pow(R,2) + 2 * Iw) + (K14 * R 
+		* (L * tauR - L * tauL + R * d * mc * v * w))/(2 * Iw * pow(L,2) + I * pow(R,2)) 
+		+ (K12 * R * (- R * d * mc * pow(w,2) + tauL + tauR))/(m * pow(R,2) + 2 * Iw) 
+		- (2 * pow(R,3) * d * mc * w * (L * tauR - L * tauL + R * d * mc * v * w))/((2 * Iw 
+		* pow(L,2) + I * pow(R,2)) * (m * pow(R,2) + 2 * Iw))))/(2 * B1 * R) - ((2 * Iw 
+		* pow(L,2) + I * pow(R,2)) * (K21 * v - Kr21 * speed_reference + K23 * w - Kr22 
+		* steering_reference + (L * R * (K1 * tauR + K2 * v + K2 * L * w))/(2 * Iw * pow(L,2) 
+		+ I * pow(R,2)) - (L * R * (K3 * tauL + K4 * v - K4 * L * w))/(2 * Iw * pow(L,2) + I 
+		* pow(R,2)) + (K24 * R * (L * tauR - L * tauL + R * d * mc * v * w))/(2 * Iw * pow(L,2) 
+		+ I * pow(R,2)) + (K22 * R * (- R * d * mc * pow(w,2) + tauL + tauR))/(m * pow(R,2) + 2 
+		* Iw) + (pow(R,3) * d * mc * v * (L * tauR - L * tauL + R * d * mc * v * w))/pow((2 * Iw 
+		* pow(L,2) + I * pow(R,2)),2) + (pow(R,3) * d * mc * w * (- R * d * mc * pow(w,2) 
+		+ tauL + tauR))/((2 * Iw * pow(L,2) + I * pow(R,2)) * (m * pow(R,2) + 2 * Iw))))
+		/ (2 * B1 * L * R);
+
+	pwr_msg.linear.x = ((2 * Iw * pow(L,2) + I * pow(R,2)) * (K21 * v - Kr21 * speed_reference + K23 * w 
+		- Kr22 * steering_reference + (L * R * (K1 * tauR + K2 * v + K2 * L * w))/(2 * Iw
+		* pow(L,2) + I * pow(R,2)) - (L * R * (K3 * tauL + K4 * v - K4 * L * w))/(2 * Iw
+		* pow(L,2) + I * pow(R,2)) + (K24 * R * (L * tauR - L * tauL + R * d * mc * v * w))
+		/ (2 * Iw * pow(L,2) + I * pow(R,2)) + (K22 * R * (- R * d * mc * pow(w,2) + tauL 
+		+ tauR))/(m * pow(R,2) + 2 * Iw) + (pow(R,3) * d * mc * v * (L * tauR - L * tauL 
+		+ R * d * mc * v * w))/pow((2 * Iw * pow(L,2) + I * pow(R,2)),2) + (pow(R,3) * d 
+		* mc * w * (- R *d * mc * pow(w,2) + tauL + tauR))/((2 * Iw * pow(L,2) + I * pow(R,2))
+		* (m * pow(R,2) + 2 *Iw))))/(2 * B2 * L * R) - ((m * pow(R,2) + 2 * Iw) * (K11 * v 
+		- Kr11 * speed_reference + K13 * w - Kr12 * steering_reference + (R * (K1 * tauR 
+		+ K2 * v + K2 * L * w))/(m * pow(R,2) + 2 * Iw) + (R * (K3 * tauL + K4 * v - K4 * L 
+		* w))/(m * pow(R,2) + 2 * Iw) + (K14 * R * (L * tauR - L * tauL + R * d * mc * v * w))
+		/ (2 * Iw * pow(L,2) + I * pow(R,2)) + (K12 * R * (- R * d * mc * pow(w,2) + tauL 
+		+ tauR))/(m * pow(R,2) + 2 * Iw) - (2 * pow(R,3) * d * mc * w * (L * tauR - L * tauL 
+		+ R * d * mc * v * w))/((2 * Iw * pow(L,2) + I * pow(R,2)) * (m * pow(R,2) + 2 * Iw))))
+		/ (2 * B2 *R);
+
+*/
+
+	pwr_msg.linear.y = 0.116*tauR + 0.838*v + 0.0424*speed_reference + 0.237*w + 0.0136*steering_reference - 0.0491*v*w - 9.8 * pow(10,-4) * w*(- 4.12 * pow(w,2) + tauL + tauR) + 0.014 * pow (w,2) - 0.0107*v*(0.285*tauR - 0.285*tauL + 4.12*v*w) + 0.0061*w*(0.285*tauR - 0.285*tauL + 4.12*v*w);
+	pwr_msg.linear.x = 0.133*tauL + 0.708*v + 0.0557*speed_reference - 0.2*w - 0.0179*steering_reference + 0.0644*v*w + 0.00129*w*(- 4.12 * pow(w,2) + tauL + tauR) + 0.0184 * pow(w,2) + 0.014*v*(0.285*tauR - 0.285*tauL + 4.12*v*w) + 0.008*w*(0.285*tauR - 0.285*tauL + 4.12*v*w);
+
+
+	pwr_msg.linear.y = pwr_msg.linear.y * 100;
+	pwr_msg.linear.x = pwr_msg.linear.x * 100;
+
+}
+
+
+// looping trigerd at desierd freques.
+void loopCallback(const ros::TimerEvent&)
+{
+	setVelMsg();
+	feedBackLinerisation();
+	emergencyStop(); 
+	pubEnginePower();
 }
 
 int main(int argc, char **argv)
@@ -227,16 +322,11 @@ int main(int argc, char **argv)
 
 	nh.param<int>("power_buffer_size",POWER_BUFFER_SIZE,200);
 	nh.param<int>("encoder_buffer_size",ENCODER_BUFFER_SIZE,5);
-	nh.param<int>("loop_freq",LOOP_FREQ,20);
+	nh.param<int>("loop_freq",LOOP_FREQ,100);
 	nh.param<int>("time_out",TIME_OUT,500);
-	nh.param<float>("k11",k11,1.5);
-	nh.param<float>("k22",k22,2.5);
-	nh.param<float>("kr11",kr11,1.5);
-	nh.param<float>("kr22",kr22,5);
 	
 	//ROS_INFO("time_out %d", TIME_OUT);
 	
-	ros::Rate loop_rate(LOOP_FREQ);
 	//set up communication channels
 	motor_power_pub = n.advertise<geometry_msgs::Twist>(ADVERTISE_POWER, POWER_BUFFER_SIZE);
 	ros::Subscriber joysub = n.subscribe<sensor_msgs::Joy>(JOY_SUB_NODE, POWER_BUFFER_SIZE, joyCallback); 
@@ -246,21 +336,13 @@ int main(int argc, char **argv)
 	ros::Subscriber refens = n.subscribe<geometry_msgs::Twist>("referens", POWER_BUFFER_SIZE, refCallback);
 	ros::Subscriber torque = n.subscribe<geometry_msgs::Twist>(TORQUE_SUB, ENCODER_BUFFER_SIZE, torqueCallback);
 
+	ros::Timer loop = n.createTimer(ros::Duration(0.01), loopCallback);
 	// for diagnostik print
   /* Data we have: vel_msg.linear.x - wanted speeds on wheels, ie r
   *  		   current_L_vel, ie y
   */
 
-	while(ros::ok()){
-  		ros::spinOnce();
-		setVelMsg();
-		feedBackLinerisation();
-		arx();
-		emergencyStop(); 
-		pubEnginePower();
-  		loop_rate.sleep();
-
-	}
+ 	ros::spin();
 
 	return 0;
 }
