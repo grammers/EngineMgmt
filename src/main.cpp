@@ -292,9 +292,11 @@ void feedBackLinerisation(){
 
 */
 
-	pwr_msg.linear.y = 0.116*tauR + 0.838*v + 0.0424*speed_reference + 0.237*w + 0.0136*steering_reference - 0.0491*v*w - 9.8 * pow(10,-4) * w*(- 4.12 * pow(w,2) + tauL + tauR) + 0.014 * pow (w,2) - 0.0107*v*(0.285*tauR - 0.285*tauL + 4.12*v*w) + 0.0061*w*(0.285*tauR - 0.285*tauL + 4.12*v*w);
-	pwr_msg.linear.x = 0.133*tauL + 0.708*v + 0.0557*speed_reference - 0.2*w - 0.0179*steering_reference + 0.0644*v*w + 0.00129*w*(- 4.12 * pow(w,2) + tauL + tauR) + 0.0184 * pow(w,2) + 0.014*v*(0.285*tauR - 0.285*tauL + 4.12*v*w) + 0.008*w*(0.285*tauR - 0.285*tauL + 4.12*v*w);
+	//pwr_msg.linear.y = 0.116*tauR + 0.838*v + 0.0424*speed_reference + 0.237*w + 0.0136*steering_reference - 0.0491*v*w - 9.8 * pow(10,-4) * w*(- 4.12 * pow(w,2) + tauL + tauR) + 0.014 * pow (w,2) - 0.0107*v*(0.285*tauR - 0.285*tauL + 4.12*v*w) + 0.0061*w*(0.285*tauR - 0.285*tauL + 4.12*v*w);
+	//pwr_msg.linear.x = 0.133*tauL + 0.708*v + 0.0557*speed_reference - 0.2*w - 0.0179*steering_reference + 0.0644*v*w + 0.00129*w*(- 4.12 * pow(w,2) + tauL + tauR) + 0.0184 * pow(w,2) + 0.014*v*(0.285*tauR - 0.285*tauL + 4.12*v*w) + 0.008*w*(0.285*tauR - 0.285*tauL + 4.12*v*w);
+pwr_msg.linear.y = - ((m*pow(R,2) + 2*Iw)*(K11*v - Kr11*speed_reference + K13*w - Kr12*steering_reference + (R*(K1*tauR + K2*v + K2*L*w))/(m*pow(R,2) + 2*Iw) + (R*(K3*tauL + K4*v - K4*L*w))/(m*pow(R,2) + 2*Iw) - (K14*R*(L*tauL - L*tauR + R*d*mc*v*w))/(2*Iw*pow(L,2) + I*pow(R,2)) + (K12*R*(- R*d*mc*pow(w,2) + tauL + tauR))/(m*pow(R,2) + 2*Iw) + (2*pow(R,3)*d*mc*w*(L*tauL - L*tauR + R*d*mc*v*w))/((2*Iw*pow(L,2) + I*pow(R,2))*(m*pow(R,2) + 2*Iw))))/(2*B1*R) - ((2*Iw*pow(L,2) + I*pow(R,2))*(K21*v - Kr21*speed_reference + K23*w - Kr22*steering_reference + (L*R*(K1*tauR + K2*v + K2*L*w))/(2*Iw*pow(L,2) + I*pow(R,2)) - (L*R*(K3*tauL + K4*v - K4*L*w))/(2*Iw*pow(L,2) + I*pow(R,2)) - (K24*R*(L*tauL - L*tauR + R*d*mc*v*w))/(2*Iw*pow(L,2) + I*pow(R,2)) + (K22*R*(- R*d*mc*pow(w,2) + tauL + tauR))/(m*pow(R,2) + 2*Iw) + (pow(R,3)*d*mc*v*(L*tauL - L*tauR + R*d*mc*v*w))/pow((2*Iw*pow(L,2) + I*pow(R,2)),2) - (pow(R,3)*d*mc*w*(- R*d*mc*pow(w,2) + tauL + tauR))/((2*Iw*pow(L,2) + I*pow(R,2))*(m*pow(R,2) + 2*Iw))))/(2*B1*L*R);
 
+pwr_msg.linear.x = ((2*Iw*pow(L,2) + I*pow(R,2))*(K21*v - Kr21*speed_reference + K23*w - Kr22*steering_reference + (L*R*(K1*tauR + K2*v + K2*L*w))/(2*Iw*pow(L,2) + I*pow(R,2)) - (L*R*(K3*tauL + K4*v - K4*L*w))/(2*Iw*pow(L,2) + I*pow(R,2)) - (K24*R*(L*tauL - L*tauR + R*d*mc*v*w))/(2*Iw*pow(L,2) + I*pow(R,2)) + (K22*R*(- R*d*mc*pow(w,2) + tauL + tauR))/(m*pow(R,2) + 2*Iw) + (pow(R,3)*d*mc*v*(L*tauL - L*tauR + R*d*mc*v*w))/((2*Iw*pow(L,2) + I*pow(R,2)),2) - (pow(R,3)*d*mc*w*(- R*d*mc*pow(w,2) + tauL + tauR))/((2*Iw*pow(L,2) + I*pow(R,2))*(m*pow(R,2) + 2*Iw))))/(2*B2*L*R) - ((m*pow(R,2) + 2*Iw)*(K11*v - Kr11*speed_reference + K13*w - Kr12*steering_reference + (R*(K1*tauR + K2*v + K2*L*w))/(m*pow(R,2) + 2*Iw) + (R*(K3*tauL + K4*v - K4*L*w))/(m*pow(R,2) + 2*Iw) - (K14*R*(L*tauL - L*tauR + R*d*mc*v*w))/(2*Iw*pow(L,2) + I*pow(R,2)) + (K12*R*(- R*d*mc*pow(w,2) + tauL + tauR))/(m*pow(R,2) + 2*Iw) + (2*pow(R,3)*d*mc*w*(L*tauL - L*tauR + R*d*mc*v*w))/((2*Iw*pow(L,2) + I*pow(R,2))*(m*pow(R,2) + 2*Iw))))/(2*B2*R);
 
 	pwr_msg.linear.y = pwr_msg.linear.y * 100;
 	pwr_msg.linear.x = pwr_msg.linear.x * 100;
@@ -307,7 +309,7 @@ void loopCallback(const ros::TimerEvent&)
 {
 	setVelMsg();
 	feedBackLinerisation();
-	emergencyStop(); 
+	emergencyStop();
 	pubEnginePower();
 }
 
